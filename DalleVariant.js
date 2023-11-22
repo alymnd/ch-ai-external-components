@@ -6793,6 +6793,180 @@ module.exports.assert = exports.assert;
 
 /***/ }),
 
+/***/ 7519:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CaseInsensitiveStringMap = void 0;
+class CaseInsensitiveStringMap {
+    constructor(map) {
+        if (map && typeof map === "object") {
+            Object.assign(this, Object.keys(map).reduce((obj, key) => {
+                obj[key.toLowerCase()] = map[key];
+                return obj;
+            }, {}));
+        }
+        return new Proxy(this, {
+            set: (obj, prop, value) => {
+                if (typeof prop === "string") {
+                    return Reflect.set(obj, prop.toLowerCase(), value);
+                }
+                else {
+                    return Reflect.set(obj, prop, value);
+                }
+            },
+            get: (obj, prop) => {
+                if (typeof prop === "string") {
+                    return Reflect.get(obj, prop.toLowerCase());
+                }
+                else {
+                    return Reflect.get(obj, prop);
+                }
+            },
+        });
+    }
+}
+exports.CaseInsensitiveStringMap = CaseInsensitiveStringMap;
+//# sourceMappingURL=base-types.js.map
+
+/***/ }),
+
+/***/ 3700:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ResponseHandler = void 0;
+const http_status_codes_1 = __webpack_require__(2016);
+const argument_error_1 = __webpack_require__(3321);
+const forbidden_error_1 = __webpack_require__(9741);
+const not_found_error_1 = __webpack_require__(2145);
+const validation_error_1 = __webpack_require__(4275);
+const validation_failure_1 = __webpack_require__(7435);
+const web_api_error_1 = __webpack_require__(1156);
+const guard_1 = __importDefault(__webpack_require__(4500));
+class ResponseHandler {
+    /**
+     * Inspects the response message's success status.
+     *
+     * @remarks
+     * Throws errors when response message is not successful.
+     *
+     * @param responseMessage - The response message
+     */
+    static handleErrors(responseMessage) {
+        guard_1.default.notNullOrUndefined(responseMessage);
+        if (responseMessage.isSuccessStatusCode) {
+            return;
+        }
+        if (responseMessage.statusCode === http_status_codes_1.StatusCodes.BAD_REQUEST) {
+            ResponseHandler.handleBadRequest(responseMessage);
+        }
+        else {
+            ResponseHandler.handleGenericError(responseMessage);
+        }
+    }
+    /**
+     * Handle validation errors related to a malformed or in another way invalid request payload send to server.
+     *
+     * @remarks
+     * This method always throws an exception.
+     *
+     * @param responseMessage - The response message
+     */
+    static handleBadRequest(responseMessage) {
+        guard_1.default.notNullOrUndefined(responseMessage);
+        if (responseMessage.isSuccessStatusCode) {
+            throw new argument_error_1.ArgumentError(`Can not process successful request (code: ${responseMessage.statusCode}).`);
+        }
+        if (responseMessage.statusCode !== http_status_codes_1.StatusCodes.BAD_REQUEST) {
+            throw new argument_error_1.ArgumentError(`Can not process failed request with status code '${responseMessage.statusCode}'.`);
+        }
+        /* istanbul ignore if */
+        if (responseMessage.content != null) {
+            let json;
+            if (typeof responseMessage.content === "string") {
+                try {
+                    json = JSON.parse(responseMessage.content);
+                }
+                catch (ex) {
+                    throw new validation_error_1.ValidationError(responseMessage.content);
+                }
+            }
+            else {
+                json = responseMessage.content;
+            }
+            throw new validation_error_1.ValidationError("One or more validation errors were detected.", ...Object.keys(json).map(propertyName => new validation_failure_1.ValidationFailure(json[propertyName], propertyName)));
+        }
+        else {
+            throw new validation_error_1.ValidationError("An unspecified error occurred.");
+        }
+    }
+    /**
+     * Handle generic errors.
+     *
+     * @remarks
+     * This method always throws an exception.
+     *
+     * @param responseMessage - The response message
+     */
+    static handleGenericError(responseMessage) {
+        var _a;
+        guard_1.default.notNullOrUndefined(responseMessage);
+        if (responseMessage.isSuccessStatusCode) {
+            throw new argument_error_1.ArgumentError(`Can not process successful request (code: ${responseMessage.statusCode}).`);
+        }
+        let message = null;
+        /* istanbul ignore if */
+        if (responseMessage.content != null) {
+            let json;
+            try {
+                if (typeof responseMessage.content === "string") {
+                    try {
+                        json = JSON.parse(responseMessage.content);
+                    }
+                    catch (ex) {
+                        throw new validation_error_1.ValidationError(responseMessage.content);
+                    }
+                }
+                else {
+                    json = responseMessage.content;
+                }
+                message = (_a = json["ExceptionMessage"]) !== null && _a !== void 0 ? _a : json["Message"];
+            }
+            catch (ex) { }
+        }
+        message = message !== null && message !== void 0 ? message : responseMessage.content;
+        if (responseMessage.statusCode === http_status_codes_1.StatusCodes.FORBIDDEN) {
+            throw new forbidden_error_1.ForbiddenError(message !== null && message !== void 0 ? message : "Insufficient privileges or resource in use.");
+        }
+        else if (responseMessage.statusCode === http_status_codes_1.StatusCodes.NOT_FOUND) {
+            throw new not_found_error_1.NotFoundError(message && message.length > 0 ? message : "Resource can not be found.", responseMessage);
+        }
+        else {
+            if (message != null) {
+                message =
+                    `An error has occurred (${responseMessage.statusCode}${responseMessage.statusText != null ? ` - ${responseMessage.statusText}` : ""}).\n` + `Message: ${message}`;
+            }
+            else if (responseMessage.statusCode === http_status_codes_1.StatusCodes.CONFLICT) {
+                message = `Conflict in the parameter value or name (${responseMessage.statusCode}${responseMessage.statusText != null ? ` - ${responseMessage.statusText}` : ""})`;
+            }
+            else {
+                message = `An error has occurred without further information (${responseMessage.statusCode}${responseMessage.statusText != null ? ` - ${responseMessage.statusText}` : ""})`;
+            }
+            throw new web_api_error_1.WebApiError(message, responseMessage.statusCode, responseMessage);
+        }
+    }
+}
+exports.ResponseHandler = ResponseHandler;
+//# sourceMappingURL=response-handler.js.map
+
+/***/ }),
+
 /***/ 3105:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -7151,6 +7325,3097 @@ exports.REALTIME = Object.freeze({
 
 /***/ }),
 
+/***/ 2728:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TypeInfo = exports.PropertyDataType = void 0;
+const PropertyDataType = {
+    String: "String",
+    Integer: "Integer",
+    Long: "Long",
+    Decimal: "Decimal",
+    Boolean: "Boolean",
+    DateTime: "DateTime",
+    DateTimeOffset: "DateTimeOffset",
+    Json: "Json",
+};
+exports.PropertyDataType = PropertyDataType;
+const DataType = Object.assign(Object.assign({}, PropertyDataType), { Relation: "Relation" });
+class TypeInfo {
+    constructor(type_, isArray) {
+        this.name = type_;
+        this.type = type_;
+        this.isArray = !!isArray;
+    }
+}
+exports.TypeInfo = TypeInfo;
+exports["default"] = DataType;
+//# sourceMappingURL=data-type.js.map
+
+/***/ }),
+
+/***/ 9063:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityBase = void 0;
+const string_format_1 = __importDefault(__webpack_require__(7856));
+const ta_json_1 = __webpack_require__(5459);
+const error_messages_1 = __importDefault(__webpack_require__(8479));
+const argument_error_1 = __webpack_require__(3321);
+const not_loaded_error_1 = __webpack_require__(340);
+const schema_error_1 = __webpack_require__(1029);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const culture_load_option_1 = __webpack_require__(4524);
+const entity_load_configuration_1 = __webpack_require__(8906);
+const member_load_option_1 = __webpack_require__(315);
+const entity_construction_args_1 = __webpack_require__(4335);
+const member_definition_type_1 = __webpack_require__(7067);
+const property_1 = __webpack_require__(4972);
+const property_manager_1 = __webpack_require__(6366);
+const relation_1 = __webpack_require__(2482);
+const relation_manager_1 = __webpack_require__(7343);
+let EntityBase = class EntityBase {
+    constructor(client, args) {
+        this._members = {};
+        guard_1.default.notNullOrUndefined(client);
+        guard_1.default.notNullOrUndefined(args);
+        guard_1.default.arrayNoneNullOrInvariantCulture(args.cultures);
+        guard_1.default.arrayNoneNullOrUndefined(args.properties);
+        guard_1.default.arrayNoneNullOrUndefined(args.relations);
+        this._client = client;
+        this.definitionName = args.definitionName;
+        this.id = args.id || undefined;
+        this.identifier = args.identifier;
+        this.cultures = args.cultures;
+        this._propertyManager = new property_manager_1.PropertyManager(client, args.properties, this);
+        this._relationManager = new relation_manager_1.RelationManager(client, args.relations, this);
+    }
+    get properties() {
+        return this._propertyManager.getProperties();
+    }
+    get relations() {
+        return this._relationManager.getRelations();
+    }
+    get canDoLazyLoading() {
+        return !this.isNew && !!this.id;
+    }
+    get isDirty() {
+        if (!this.isTracking) {
+            return false;
+        }
+        for (const dirtyTracker of this.getDirtyTrackingMembers()) {
+            if (dirtyTracker.isDirty) {
+                return true;
+            }
+        }
+        return false;
+    }
+    get isNew() {
+        return !this.id || this.id <= 0;
+    }
+    isProperty(member) {
+        return member && member.definitionType === member_definition_type_1.MemberDefinitionType.Property;
+    }
+    getProperty(name) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        const property = this._propertyManager.getProperty(name);
+        if (property == null) {
+            const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyNotFound, name, this.id, this.definitionName);
+            throw new not_loaded_error_1.NotLoadedError(errorMessage);
+        }
+        return property;
+    }
+    getPropertyAsync(name, loadOption = member_load_option_1.MemberLoadOption.LazyLoading) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.stringNotNullOrEmpty(name);
+            guard_1.default.notNullOrUndefined(loadOption);
+            let property = this._propertyManager.getProperty(name);
+            if (property == null && loadOption == member_load_option_1.MemberLoadOption.LazyLoading) {
+                property = yield this._propertyManager.loadPropertyAsync(name);
+                if (property == null) {
+                    const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyDoesNotExist, name, this.definitionName);
+                    throw new schema_error_1.SchemaError(errorMessage);
+                }
+            }
+            if (property == null) {
+                const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyNotFound, name, this.id, this.definitionName);
+                throw new schema_error_1.SchemaError(errorMessage);
+            }
+            return property;
+        });
+    }
+    getPropertyValue(name, culture) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        const property = this.getProperty(name);
+        if (property == null) {
+            const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyNotFound, name, this.id, this.definitionName);
+            throw new not_loaded_error_1.NotLoadedError(errorMessage);
+        }
+        else if (property.isMultiLanguage && culture == null) {
+            throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureRequired);
+        }
+        else if (culture != null && !property.isMultiLanguage) {
+            throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureNotSupported);
+        }
+        if (property.isMultiLanguage) {
+            const cultureSensitiveProp = property;
+            return cultureSensitiveProp.getValue(culture);
+        }
+        else {
+            const cultureInsensitiveProp = property;
+            return cultureInsensitiveProp.getValue();
+        }
+    }
+    getPropertyValueAsync(name, loadOption = member_load_option_1.MemberLoadOption.LazyLoading, culture) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.stringNotNullOrEmpty(name);
+            guard_1.default.notNullOrUndefined(loadOption);
+            const property = yield this.getPropertyAsync(name, loadOption);
+            if (property == null) {
+                const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyDoesNotExist, name, this.definitionName);
+                throw new schema_error_1.SchemaError(errorMessage);
+            }
+            else if (property.isMultiLanguage && culture == null) {
+                throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureRequired);
+            }
+            else if (culture != null && !property.isMultiLanguage) {
+                throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureNotSupported);
+            }
+            if (property.isMultiLanguage) {
+                const cultureSensitiveProp = property;
+                return cultureSensitiveProp.getValue(culture);
+            }
+            else {
+                const cultureInsensitiveProp = property;
+                return cultureInsensitiveProp.getValue();
+            }
+        });
+    }
+    setPropertyValue(name, value, culture) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        const property = this._propertyManager.getProperty(name);
+        if (property == null) {
+            const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.PropertyNotFound, name, this.id, this.definitionName);
+            throw new not_loaded_error_1.NotLoadedError(errorMessage);
+        }
+        else if (property.isMultiLanguage && culture == null) {
+            throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureRequired);
+        }
+        else if (culture != null && !property.isMultiLanguage) {
+            throw new argument_error_1.ArgumentError(error_messages_1.default.Entity.CultureRequired);
+        }
+        if (property.isMultiLanguage) {
+            property.setValue(culture, value);
+        }
+        else {
+            property.setValue(value);
+        }
+    }
+    getRelation(name, role, _returnNull = false) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        const relation = this._relationManager.getRelation(name, role);
+        if (relation == null) {
+            if (_returnNull) {
+                return null;
+            }
+            const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.RelationNotFound, name, this.id, this.definitionName);
+            throw new not_loaded_error_1.NotLoadedError(errorMessage);
+        }
+        else if (relation_1.RelationBase.isChildToManyParentsRelation(relation)) {
+            return relation;
+        }
+        else if (relation_1.RelationBase.isChildToOneParentRelation(relation)) {
+            return relation;
+        }
+        else if (relation_1.RelationBase.isParentToManyChildrenRelation(relation)) {
+            return relation;
+        }
+        else if (relation_1.RelationBase.isParentToOneChildRelation(relation)) {
+            return relation;
+        }
+        return null;
+    }
+    getRelationAsync(name, role, loadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.stringNotNullOrEmpty(name);
+            const relation = this.getRelation(name, role, true);
+            if (relation == null && loadOption == member_load_option_1.MemberLoadOption.LazyLoading) {
+                {
+                    // Scoped to be able to redefine relation as type RelationType does not match IRelation. //TODO generics?
+                    const relation = yield this._relationManager.loadRelationAsync(name, role);
+                    if (relation == null) {
+                        const errorMessage = (0, string_format_1.default)(error_messages_1.default.Entity.RelationDoesNotExist, name, this.definitionName);
+                        throw new schema_error_1.SchemaError(errorMessage);
+                    }
+                    if (relation_1.RelationBase.isChildToManyParentsRelation(relation)) {
+                        return relation;
+                    }
+                    else if (relation_1.RelationBase.isChildToOneParentRelation(relation)) {
+                        return relation;
+                    }
+                    else if (relation_1.RelationBase.isParentToManyChildrenRelation(relation)) {
+                        return relation;
+                    }
+                    else if (relation_1.RelationBase.isParentToOneChildRelation(relation)) {
+                        return relation;
+                    }
+                }
+            }
+            return relation;
+        });
+    }
+    loadPropertiesAsync(propertyLoadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.canDoLazyLoading || propertyLoadOption == null) {
+                return false;
+            }
+            return this._propertyManager.loadPropertiesAsync(propertyLoadOption);
+        });
+    }
+    loadRelationsAsync(relationLoadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.canDoLazyLoading || relationLoadOption == null) {
+                return false;
+            }
+            return this._relationManager.loadRelationsAsync(relationLoadOption);
+        });
+    }
+    loadMembersAsync(propertyLoadOption, relationLoadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.canDoLazyLoading) {
+                return false;
+            }
+            const hasMissingProperties = this._propertyManager.hasMissingProperties(propertyLoadOption);
+            const hasMissingRelations = this._relationManager.hasMissingRelations(relationLoadOption);
+            if (!hasMissingProperties && !hasMissingRelations) {
+                return false;
+            }
+            const cultureLoadOption = new culture_load_option_1.CultureLoadOption([...this.cultures]);
+            const loadConfiguration = new entity_load_configuration_1.EntityLoadConfiguration(cultureLoadOption, propertyLoadOption, relationLoadOption);
+            const tempEntity = yield this._client.entities.getAsync(this.id, loadConfiguration);
+            // Import missing members
+            this._propertyManager.importMissingProperties(tempEntity);
+            this._relationManager.importMissingRelations(tempEntity);
+            return true;
+        });
+    }
+    getEntityDefinitionAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (yield this._client.entityDefinitions.getCachedAsync(this.definitionName));
+        });
+    }
+    startTracking() {
+        if (this.isTracking)
+            return;
+        this.isTracking = true;
+        for (const member of this.getDirtyTrackingMembers()) {
+            member.startTracking();
+        }
+    }
+    markClean() {
+        for (const member of this.getDirtyTrackingMembers()) {
+            member.markClean();
+        }
+    }
+    getDirtyTrackingMembers() {
+        const properties = this._propertyManager.getProperties();
+        const relations = this._relationManager.getRelations();
+        const list = [...properties, ...relations];
+        return list;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("id"),
+    __metadata("design:type", Number)
+], EntityBase.prototype, "id", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("identifier"),
+    __metadata("design:type", Object)
+], EntityBase.prototype, "identifier", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("hasPublicLink"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "hasPublicLink", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("gatewayLinks"),
+    __metadata("design:type", Object)
+], EntityBase.prototype, "gatewayLinks", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("publicLink"),
+    __metadata("design:type", String)
+], EntityBase.prototype, "publicLink", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("publicCollectionLink"),
+    __metadata("design:type", String)
+], EntityBase.prototype, "publicCollectionLink", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("locked_by"),
+    __metadata("design:type", Object)
+], EntityBase.prototype, "lockedBy", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("locked_on"),
+    __metadata("design:type", Object)
+], EntityBase.prototype, "lockedOn", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_root_taxonomy_item"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "isRootTaxonomyItem", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_path_root"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "isPathRoot", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("inherits_security"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "inheritsSecurity", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_system_owned"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "isSystemOwned", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("version"),
+    __metadata("design:type", Number)
+], EntityBase.prototype, "version", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("cultures"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], EntityBase.prototype, "cultures", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_current_user_default"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "isCurrentUserDefault", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_enabled"),
+    __metadata("design:type", Boolean)
+], EntityBase.prototype, "isEnabled", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("modules"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], EntityBase.prototype, "modules", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("combinedPublishStatus"),
+    __metadata("design:type", String)
+], EntityBase.prototype, "combinedPublishStatus", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("combinedPublishStatusDetails"),
+    __metadata("design:type", String)
+], EntityBase.prototype, "combinedPublishStatusDetails", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("properties"),
+    (0, ta_json_1.JsonElementType)(property_1.PropertyBase),
+    __metadata("design:type", Array)
+], EntityBase.prototype, "_properties", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("relations"),
+    (0, ta_json_1.JsonElementType)(relation_1.RelationBase),
+    __metadata("design:type", Array)
+], EntityBase.prototype, "_relations", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("created_on"),
+    __metadata("design:type", Date)
+], EntityBase.prototype, "createdOn", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("created_by"),
+    __metadata("design:type", Number)
+], EntityBase.prototype, "createdBy", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("modified_on"),
+    __metadata("design:type", Date)
+], EntityBase.prototype, "modifiedOn", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("modified_by"),
+    __metadata("design:type", Number)
+], EntityBase.prototype, "modifiedBy", void 0);
+EntityBase = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object, entity_construction_args_1.EntityConstructionArgs])
+], EntityBase);
+exports.EntityBase = EntityBase;
+//# sourceMappingURL=entity-base.js.map
+
+/***/ }),
+
+/***/ 4335:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityConstructionArgs = void 0;
+class EntityConstructionArgs {
+    constructor(definitionName, init) {
+        this.id = null;
+        this.identifier = null;
+        this.properties = [];
+        this.relations = [];
+        this.cultures = [];
+        this.renditions = [];
+        this.relatedPaths = [];
+        this.definitionName = definitionName;
+        Object.assign(this, init);
+    }
+}
+exports.EntityConstructionArgs = EntityConstructionArgs;
+//# sourceMappingURL=entity-construction-args.js.map
+
+/***/ }),
+
+/***/ 4475:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityDefinition = void 0;
+const string_format_1 = __importDefault(__webpack_require__(7856));
+const ta_json_1 = __webpack_require__(5459);
+const error_messages_1 = __importDefault(__webpack_require__(8479));
+const invalid_operation_error_1 = __webpack_require__(3220);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const member_group_1 = __webpack_require__(3928);
+const property_definition_1 = __webpack_require__(382);
+const relation_definition_1 = __webpack_require__(2384);
+let EntityDefinition = class EntityDefinition {
+    constructor(init) {
+        this.isSystemOwned = false;
+        Object.assign(this, init);
+        this.memberGroups = this.memberGroups || [];
+        this.labels = this.labels || {};
+    }
+    get isNew() {
+        return !this.id;
+    }
+    getPropertyDefinition(name) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        return (this.getPropertyDefinitions().find(propertyDefinition => {
+            return propertyDefinition.name.toLowerCase() === name.toLowerCase();
+        }) || null);
+    }
+    getPropertyDefinitions() {
+        return this.getMemberDefinitions(property_definition_1.PropertyDefinition);
+    }
+    getRelationDefinition(name, role) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        const relationDefinition = this.getRelationDefinitions().find(relationDefinition => {
+            return (relationDefinition.name.toLowerCase() === name.toLowerCase() &&
+                (role == null || relationDefinition.role === role));
+        });
+        if ((relationDefinition === null || relationDefinition === void 0 ? void 0 : relationDefinition.associatedEntityDefinitionName) === this.name && role == null) {
+            const errorMessage = (0, string_format_1.default)(error_messages_1.default.NoRoleSpecifiedForSelfRelation, name);
+            throw new invalid_operation_error_1.InvalidOperationError(errorMessage);
+        }
+        return relationDefinition !== null && relationDefinition !== void 0 ? relationDefinition : null;
+    }
+    getRelationDefinitions() {
+        return this.getMemberDefinitions(relation_definition_1.RelationDefinition);
+    }
+    getMemberDefinitions(typeT) {
+        const members = [];
+        for (const group of this.memberGroups) {
+            for (const member of group.memberDefinitions) {
+                if (member instanceof typeT) {
+                    members.push(member);
+                }
+            }
+        }
+        return members;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("id"),
+    __metadata("design:type", Number)
+], EntityDefinition.prototype, "id", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("name"),
+    __metadata("design:type", String)
+], EntityDefinition.prototype, "name", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("created_by"),
+    __metadata("design:type", Number)
+], EntityDefinition.prototype, "createdBy", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("created_on"),
+    __metadata("design:type", Date)
+], EntityDefinition.prototype, "createdOn", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("modified_by"),
+    __metadata("design:type", Number)
+], EntityDefinition.prototype, "modifiedBy", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("modified_on"),
+    __metadata("design:type", Date)
+], EntityDefinition.prototype, "modifiedOn", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("display_template"),
+    __metadata("design:type", String)
+], EntityDefinition.prototype, "displayTemplate", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_taxonomy_item_definition"),
+    __metadata("design:type", Boolean)
+], EntityDefinition.prototype, "isTaxonomyItemDefinition", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_path_enabled_definition"),
+    __metadata("design:type", Boolean)
+], EntityDefinition.prototype, "isPathEnabledDefinition", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_manual_sorting_allowed"),
+    __metadata("design:type", Boolean)
+], EntityDefinition.prototype, "isManualSortingAllowed", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_system_owned"),
+    __metadata("design:type", Boolean)
+], EntityDefinition.prototype, "isSystemOwned", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("member_groups"),
+    (0, ta_json_1.JsonElementType)(member_group_1.MemberGroup),
+    __metadata("design:type", Array)
+], EntityDefinition.prototype, "memberGroups", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("labels"),
+    __metadata("design:type", Object)
+], EntityDefinition.prototype, "labels", void 0);
+EntityDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], EntityDefinition);
+exports.EntityDefinition = EntityDefinition;
+//# sourceMappingURL=entity-definition.js.map
+
+/***/ }),
+
+/***/ 7052:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Entity = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const base_types_1 = __webpack_require__(7519);
+const response_handler_1 = __webpack_require__(3700);
+const error_messages_1 = __importDefault(__webpack_require__(8479));
+const invalid_operation_error_1 = __webpack_require__(3220);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const permissions_resource_1 = __webpack_require__(2337);
+const entity_base_1 = __webpack_require__(9063);
+const entity_construction_args_1 = __webpack_require__(4335);
+let Entity = class Entity extends entity_base_1.EntityBase {
+    constructor(client, args) {
+        super(client, args);
+        this._renditions = new base_types_1.CaseInsensitiveStringMap();
+        if (args.renditions != null) {
+            for (const rendition of args.renditions) {
+                this._renditions[rendition.name] = rendition;
+            }
+        }
+        this._relatedPaths = new base_types_1.CaseInsensitiveStringMap();
+        if (args.relatedPaths != null) {
+            for (const relatedPath of args.relatedPaths) {
+                this._relatedPaths[relatedPath.name] = relatedPath;
+            }
+        }
+    }
+    get renditions() {
+        return Object.values(this._renditions);
+    }
+    get relatedPaths() {
+        return Object.values(this._relatedPaths);
+    }
+    getRendition(name) {
+        var _a, _b;
+        guard_1.default.stringNotNullOrEmpty(name);
+        const rendition = (_b = (_a = this._renditions) === null || _a === void 0 ? void 0 : _a[name]) !== null && _b !== void 0 ? _b : null;
+        return rendition;
+    }
+    getRelatedPath(name) {
+        var _a, _b;
+        guard_1.default.stringNotNullOrEmpty(name);
+        const relatedPath = (_b = (_a = this._relatedPaths) === null || _a === void 0 ? void 0 : _a[name]) !== null && _b !== void 0 ? _b : null;
+        return relatedPath;
+    }
+    getPermissionsAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            //TODO HashSet?
+            if (this.isNew) {
+                throw new invalid_operation_error_1.InvalidOperationError(error_messages_1.default.Entity.NoPermissionsOnNewEntity);
+            }
+            const link = yield this._client.linkHelper.permissionsForEntityToLinkAsync(this.id);
+            const response = yield this._client.raw.getAsync(link.href);
+            response_handler_1.ResponseHandler.handleErrors(response);
+            const resource = ta_json_1.TaJson.deserialize(response.content, permissions_resource_1.PermissionsResource);
+            return resource.permissions || [];
+        });
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("renditions"),
+    __metadata("design:type", base_types_1.CaseInsensitiveStringMap)
+], Entity.prototype, "_renditions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("related_paths"),
+    __metadata("design:type", base_types_1.CaseInsensitiveStringMap)
+], Entity.prototype, "_relatedPaths", void 0);
+Entity = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object, entity_construction_args_1.EntityConstructionArgs])
+], Entity);
+exports.Entity = Entity;
+//# sourceMappingURL=entity.js.map
+
+/***/ }),
+
+/***/ 2181:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__webpack_require__(6816), exports);
+__exportStar(__webpack_require__(2728), exports);
+__exportStar(__webpack_require__(6763), exports);
+__exportStar(__webpack_require__(5344), exports);
+__exportStar(__webpack_require__(7067), exports);
+__exportStar(__webpack_require__(1308), exports);
+__exportStar(__webpack_require__(3928), exports);
+__exportStar(__webpack_require__(5494), exports);
+__exportStar(__webpack_require__(7305), exports);
+__exportStar(__webpack_require__(2581), exports);
+__exportStar(__webpack_require__(2384), exports);
+__exportStar(__webpack_require__(382), exports);
+__exportStar(__webpack_require__(3195), exports);
+__exportStar(__webpack_require__(4475), exports);
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 6763:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.JsonContentType = void 0;
+/**
+ * Types of string content.
+ */
+var JsonContentType;
+(function (JsonContentType) {
+    /**
+     * Content represents renditions.
+     */
+    JsonContentType[JsonContentType["Renditions"] = 0] = "Renditions";
+})(JsonContentType = exports.JsonContentType || (exports.JsonContentType = {}));
+//# sourceMappingURL=json-content-type.js.map
+
+/***/ }),
+
+/***/ 9185:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LazyLoadingManager = void 0;
+const error_messages_1 = __importDefault(__webpack_require__(8479));
+const guard_1 = __importDefault(__webpack_require__(4500));
+class LazyLoadingManager {
+    static ensureLazyLoadingIsPossible(entity) {
+        guard_1.default.notNullOrUndefined(entity);
+        if (!entity.canDoLazyLoading) {
+            throw error_messages_1.default.Entity.CannotLazyLoad;
+        }
+    }
+}
+exports.LazyLoadingManager = LazyLoadingManager;
+//# sourceMappingURL=lazy-loading-manager.js.map
+
+/***/ }),
+
+/***/ 5494:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationMemberCondition = exports.BooleanMemberCondition = exports.StringMemberCondition = exports.NoAncestorMemberCondition = exports.MemberCondition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const guard_1 = __importDefault(__webpack_require__(4500));
+let MemberCondition = class MemberCondition {
+    constructor(memberName) {
+        this.memberName = memberName;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("member"),
+    __metadata("design:type", String)
+], MemberCondition.prototype, "memberName", void 0);
+MemberCondition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String])
+], MemberCondition);
+exports.MemberCondition = MemberCondition;
+// // /**
+// //  * Condition triggered on the value of the property member or ancestor id of the relation.
+// //  */
+// // export class MemberValueCondition extends MemberCondition {
+// //     /**
+// //      * Non {@link null} case insensitive and culture agnostic value which is compared against
+// //      * entity property value or relation member taxonomy ancestors. Possible types of this
+// //      * value are {@link string} or {@link number}.
+// //      * Note that an empty string is treated as unspecified value not triggering the condition.
+// //      */
+// //     @JsonProperty("value")
+// //     value: number|string;
+// //
+// //     constructor(memberName: string, value: number|string) {
+// //         super(memberName);
+// //         Guard.notNullOrUndefined(value);
+// //
+// //         this.value = value;
+// //     }
+// // }
+/**
+ * Condition triggered if the relation does not have ancestor of given definition id.
+ */
+let NoAncestorMemberCondition = class NoAncestorMemberCondition extends MemberCondition {
+    constructor(memberName, definitionId) {
+        super(memberName);
+        this.definitionId = definitionId;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("definitionId"),
+    __metadata("design:type", Number)
+], NoAncestorMemberCondition.prototype, "definitionId", void 0);
+NoAncestorMemberCondition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, Number])
+], NoAncestorMemberCondition);
+exports.NoAncestorMemberCondition = NoAncestorMemberCondition;
+/**
+ * Condition triggered on the value of the property.
+ */
+let StringMemberCondition = class StringMemberCondition extends MemberCondition {
+    constructor(memberName, value) {
+        super(memberName);
+        guard_1.default.notNullOrUndefined(value);
+        this.value = value;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("value"),
+    __metadata("design:type", String)
+], StringMemberCondition.prototype, "value", void 0);
+StringMemberCondition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, String])
+], StringMemberCondition);
+exports.StringMemberCondition = StringMemberCondition;
+/**
+ * Condition triggered on the value of the property.
+ */
+let BooleanMemberCondition = class BooleanMemberCondition extends MemberCondition {
+    constructor(memberName, value) {
+        super(memberName);
+        guard_1.default.notNullOrUndefined(value);
+        this.value = value;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("value"),
+    __metadata("design:type", Boolean)
+], BooleanMemberCondition.prototype, "value", void 0);
+BooleanMemberCondition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, Boolean])
+], BooleanMemberCondition);
+exports.BooleanMemberCondition = BooleanMemberCondition;
+/**
+ * Condition triggered on ancestor id of the relation.
+ */
+let RelationMemberCondition = class RelationMemberCondition extends MemberCondition {
+    constructor(memberName, entityId) {
+        super(memberName);
+        this.entityId = entityId;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("entityId"),
+    __metadata("design:type", Number)
+], RelationMemberCondition.prototype, "entityId", void 0);
+RelationMemberCondition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, Number])
+], RelationMemberCondition);
+exports.RelationMemberCondition = RelationMemberCondition;
+//# sourceMappingURL=member-condition.js.map
+
+/***/ }),
+
+/***/ 7067:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberDefinitionType = void 0;
+/**
+ * Describes the type of member.
+ */
+var MemberDefinitionType;
+(function (MemberDefinitionType) {
+    /**
+     * For properties.
+     */
+    MemberDefinitionType[MemberDefinitionType["Property"] = 0] = "Property";
+    /**
+     * For relations.
+     */
+    MemberDefinitionType[MemberDefinitionType["Relation"] = 1] = "Relation";
+})(MemberDefinitionType = exports.MemberDefinitionType || (exports.MemberDefinitionType = {}));
+//# sourceMappingURL=member-definition-type.js.map
+
+/***/ }),
+
+/***/ 1308:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const member_condition_1 = __webpack_require__(5494);
+const member_definition_type_1 = __webpack_require__(7067);
+let MemberDefinition = class MemberDefinition {
+    constructor(name, type) {
+        this.allowUpdates = true;
+        this.labels = {};
+        this.helpText = {};
+        this.conditions = [];
+        this.name = name;
+        this.type = type;
+    }
+    get isConditional() {
+        return !!this.conditions.length;
+    }
+    static isPropertyDefinition(definition) {
+        return definition.definitionType === member_definition_type_1.MemberDefinitionType.Property;
+    }
+    static isStringPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.String;
+    }
+    static isIntegerPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.Integer;
+    }
+    static isLongPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.Long;
+    }
+    static isDecimalPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.Decimal;
+    }
+    static isBooleanPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.Boolean;
+    }
+    static isDateTimePropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.DateTime;
+    }
+    static isDateTimeOffsetPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.DateTimeOffset;
+    }
+    static isJsonPropertyDefinition(definition) {
+        return this.isPropertyDefinition(definition) && definition.dataType === data_type_1.default.Json;
+    }
+    static isRelationDefinition(definition) {
+        return definition.definitionType === member_definition_type_1.MemberDefinitionType.Relation;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("type"),
+    __metadata("design:type", String)
+], MemberDefinition.prototype, "type", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("name"),
+    __metadata("design:type", String)
+], MemberDefinition.prototype, "name", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("allow_updates"),
+    __metadata("design:type", Boolean)
+], MemberDefinition.prototype, "allowUpdates", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_system_owned"),
+    __metadata("design:type", Boolean)
+], MemberDefinition.prototype, "isSystemOwned", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_secured"),
+    __metadata("design:type", Boolean)
+], MemberDefinition.prototype, "isSecured", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("labels"),
+    __metadata("design:type", Object)
+], MemberDefinition.prototype, "labels", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("helptext"),
+    __metadata("design:type", Object)
+], MemberDefinition.prototype, "helpText", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("conditions"),
+    (0, ta_json_1.JsonElementType)(member_condition_1.MemberCondition),
+    __metadata("design:type", Array)
+], MemberDefinition.prototype, "conditions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("can_trigger_conditional_members"),
+    __metadata("design:type", Boolean)
+], MemberDefinition.prototype, "canTriggerConditionalMembers", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("can_write"),
+    __metadata("design:type", Boolean)
+], MemberDefinition.prototype, "canWrite", void 0);
+MemberDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorProperty)("type"),
+    __metadata("design:paramtypes", [String, String])
+], MemberDefinition);
+exports.MemberDefinition = MemberDefinition;
+//# sourceMappingURL=member-definition.js.map
+
+/***/ }),
+
+/***/ 3928:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberGroup = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const member_condition_converter_1 = __webpack_require__(2078);
+const member_condition_1 = __webpack_require__(5494);
+const member_definition_1 = __webpack_require__(1308);
+let MemberGroup = class MemberGroup {
+    constructor(init) {
+        this.conditions = [];
+        this.memberDefinitions = [];
+        this.labels = {};
+        Object.assign(this, init);
+    }
+    // @JsonProperty("is_conditional")
+    get isConditional() {
+        return this.conditions != null && this.conditions.length > 0;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("name"),
+    __metadata("design:type", String)
+], MemberGroup.prototype, "name", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("content_group"),
+    __metadata("design:type", String)
+], MemberGroup.prototype, "contentGroup", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_system_owned"),
+    __metadata("design:type", Boolean)
+], MemberGroup.prototype, "isSystemOwned", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("conditions"),
+    (0, ta_json_1.JsonElementType)(member_condition_1.MemberCondition),
+    (0, ta_json_1.JsonConverter)(member_condition_converter_1.MemberConditionConverter),
+    __metadata("design:type", Array)
+], MemberGroup.prototype, "conditions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_secured"),
+    __metadata("design:type", Boolean)
+], MemberGroup.prototype, "isSecured", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("members"),
+    (0, ta_json_1.JsonElementType)(member_definition_1.MemberDefinition),
+    __metadata("design:type", Array)
+], MemberGroup.prototype, "memberDefinitions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("labels"),
+    __metadata("design:type", Object)
+], MemberGroup.prototype, "labels", void 0);
+MemberGroup = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], MemberGroup);
+exports.MemberGroup = MemberGroup;
+//# sourceMappingURL=member-group.js.map
+
+/***/ }),
+
+/***/ 6707:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberBase = void 0;
+const guard_1 = __importDefault(__webpack_require__(4500));
+const member_definition_type_1 = __webpack_require__(7067);
+class MemberBase {
+    constructor(name, definitionType) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        this.name = name;
+        this.definitionType = definitionType;
+    }
+    /**
+     * Returns a string representation of the current member instance.
+     *
+     * @remarks
+     * Can not be used for serialization. Only useful during debugging or testing.
+     * Returned format: \<member name\> ({@link MemberDefinitionType}) (\<constructor.name\>)
+     */
+    toString() {
+        return `${this.name} (${member_definition_type_1.MemberDefinitionType[this.definitionType]}) (${this.constructor.name})`;
+    }
+}
+exports.MemberBase = MemberBase;
+//# sourceMappingURL=member.js.map
+
+/***/ }),
+
+/***/ 382:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const conditional_validation_resource_1 = __webpack_require__(789);
+const data_type_1 = __webpack_require__(2728);
+const member_definition_1 = __webpack_require__(1308);
+const member_definition_type_1 = __webpack_require__(7067);
+let PropertyDefinition = class PropertyDefinition extends member_definition_1.MemberDefinition {
+    constructor(name, type) {
+        super(name, type);
+    }
+    get dataType() {
+        return this.type;
+    }
+    get definitionType() {
+        return member_definition_type_1.MemberDefinitionType.Property;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_indexed"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "indexed", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_mandatory"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "isMandatory", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_multilanguage"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "isMultiLanguage", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_multivalue"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "isMultiValue", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_unique"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "isUnique", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("boost"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "boost", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("included_in_content"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "includeInContent", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("included_in_completion"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "includeInCompletion", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("ignore_on_export"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "ignoreOnExport", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("stored_in_graph"),
+    __metadata("design:type", Boolean)
+], PropertyDefinition.prototype, "storedInGraph", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("conditional_validation"),
+    (0, ta_json_1.JsonConverter)(conditional_validation_resource_1.ConditionalValidationResourceConverter),
+    __metadata("design:type", conditional_validation_resource_1.ConditionalValidationResource)
+], PropertyDefinition.prototype, "conditionalValidation", void 0);
+PropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, String])
+], PropertyDefinition);
+exports.PropertyDefinition = PropertyDefinition;
+// Export all property definition types (required for (de)serialization).
+__exportStar(__webpack_require__(3195), exports);
+//# sourceMappingURL=property-definition.js.map
+
+/***/ }),
+
+/***/ 3733:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BooleanPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * Boolean property definition.
+ */
+let BooleanPropertyDefinition = class BooleanPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Boolean);
+        Object.assign(this, init);
+    }
+};
+BooleanPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.Boolean),
+    __metadata("design:paramtypes", [String, Object])
+], BooleanPropertyDefinition);
+exports.BooleanPropertyDefinition = BooleanPropertyDefinition;
+//# sourceMappingURL=boolean-property-definition.js.map
+
+/***/ }),
+
+/***/ 7037:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DateTimePropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * DateTime property definition.
+ */
+let DateTimePropertyDefinition = class DateTimePropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.DateTime);
+        Object.assign(this, init);
+    }
+};
+DateTimePropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.DateTime),
+    __metadata("design:paramtypes", [String, Object])
+], DateTimePropertyDefinition);
+exports.DateTimePropertyDefinition = DateTimePropertyDefinition;
+//# sourceMappingURL=datetime-property-definition.js.map
+
+/***/ }),
+
+/***/ 5872:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DateTimeOffsetPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * DateTimeOffset property definition.
+ */
+let DateTimeOffsetPropertyDefinition = class DateTimeOffsetPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.DateTimeOffset);
+        Object.assign(this, init);
+    }
+};
+DateTimeOffsetPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.DateTimeOffset),
+    __metadata("design:paramtypes", [String, Object])
+], DateTimeOffsetPropertyDefinition);
+exports.DateTimeOffsetPropertyDefinition = DateTimeOffsetPropertyDefinition;
+//# sourceMappingURL=datetimeoffset-property-definition.js.map
+
+/***/ }),
+
+/***/ 1168:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DecimalPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * Decimal property definition.
+ */
+let DecimalPropertyDefinition = class DecimalPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Decimal);
+        Object.assign(this, init);
+    }
+};
+DecimalPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.Decimal),
+    __metadata("design:paramtypes", [String, Object])
+], DecimalPropertyDefinition);
+exports.DecimalPropertyDefinition = DecimalPropertyDefinition;
+//# sourceMappingURL=decimal-property-definition.js.map
+
+/***/ }),
+
+/***/ 3195:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__webpack_require__(3733), exports);
+__exportStar(__webpack_require__(7037), exports);
+__exportStar(__webpack_require__(5872), exports);
+__exportStar(__webpack_require__(1168), exports);
+__exportStar(__webpack_require__(8235), exports);
+__exportStar(__webpack_require__(1278), exports);
+__exportStar(__webpack_require__(2553), exports);
+__exportStar(__webpack_require__(741), exports);
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 8235:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IntegerPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * Integer property definition.
+ */
+let IntegerPropertyDefinition = class IntegerPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Integer);
+        Object.assign(this, init);
+    }
+};
+IntegerPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.Integer),
+    __metadata("design:paramtypes", [String, Object])
+], IntegerPropertyDefinition);
+exports.IntegerPropertyDefinition = IntegerPropertyDefinition;
+//# sourceMappingURL=integer-property-definition.js.map
+
+/***/ }),
+
+/***/ 1278:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.JsonPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * Json property definition.
+ */
+let JsonPropertyDefinition = class JsonPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Json);
+        this.contentType = null;
+        Object.assign(this, init);
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("content_type"),
+    __metadata("design:type", Object)
+], JsonPropertyDefinition.prototype, "contentType", void 0);
+JsonPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)("Json"),
+    __metadata("design:paramtypes", [String, Object])
+], JsonPropertyDefinition);
+exports.JsonPropertyDefinition = JsonPropertyDefinition;
+//# sourceMappingURL=json-property-definition.js.map
+
+/***/ }),
+
+/***/ 2553:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LongPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+/**
+ * Long property definition.
+ */
+let LongPropertyDefinition = class LongPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Long);
+        Object.assign(this, init);
+    }
+};
+LongPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.Long),
+    __metadata("design:paramtypes", [String, Object])
+], LongPropertyDefinition);
+exports.LongPropertyDefinition = LongPropertyDefinition;
+//# sourceMappingURL=long-property-definition.js.map
+
+/***/ }),
+
+/***/ 741:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.StringPropertyDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const property_definition_1 = __webpack_require__(382);
+const string_content_type_1 = __webpack_require__(5344);
+/**
+ *
+ * String property definition.
+ */
+let StringPropertyDefinition = class StringPropertyDefinition extends property_definition_1.PropertyDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.String);
+        Object.assign(this, init);
+    }
+    /**
+     * The name of the {@link IOptionList} to get possible values from.
+     *
+     * @remarks
+     * Is null when there is no attached option list.
+     */
+    get optionListName() {
+        return this.dataSourceName;
+    }
+    set optionListName(value) {
+        this.dataSourceName = value;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("content_type"),
+    __metadata("design:type", String)
+], StringPropertyDefinition.prototype, "contentType", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("validation_expression"),
+    __metadata("design:type", Object)
+], StringPropertyDefinition.prototype, "validationExpression", void 0);
+StringPropertyDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.String),
+    __metadata("design:paramtypes", [String, Object])
+], StringPropertyDefinition);
+exports.StringPropertyDefinition = StringPropertyDefinition;
+//# sourceMappingURL=string-property-definition.js.map
+
+/***/ }),
+
+/***/ 6366:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PropertyManager = void 0;
+const base_types_1 = __webpack_require__(7519);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const mapping_utilities_1 = __webpack_require__(5228);
+const entity_load_configuration_1 = __webpack_require__(8906);
+const load_options_1 = __webpack_require__(9754);
+const property_load_option_1 = __webpack_require__(9425);
+const relation_load_option_1 = __webpack_require__(6276);
+const lazy_loading_manager_1 = __webpack_require__(9185);
+class PropertyManager {
+    constructor(client, properties, entity) {
+        guard_1.default.notNullOrUndefined(entity);
+        guard_1.default.notNullOrUndefined(client);
+        guard_1.default.notNullOrUndefined(properties);
+        this._client = client;
+        this._entity = entity;
+        this._properties = new base_types_1.CaseInsensitiveStringMap();
+        for (const property of properties) {
+            this._properties[property.name] = property;
+        }
+    }
+    get count() {
+        return Object.keys(this._properties).length;
+    }
+    getProperty(name) {
+        guard_1.default.stringNotNullOrEmpty(name);
+        return this._properties[name] || null;
+    }
+    getProperties() {
+        return [...Object.values(this._properties)];
+    }
+    loadPropertyAsync(propertyName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.stringNotNullOrEmpty(propertyName);
+            lazy_loading_manager_1.LazyLoadingManager.ensureLazyLoadingIsPossible(this._entity);
+            // Check if it is already loaded
+            let property = this._properties[propertyName];
+            if (property) {
+                return property;
+            }
+            // Load the property
+            property = yield this.fetchPropertyAsync(propertyName);
+            // Add the property
+            if (property != null) {
+                this._properties[property.name] = property;
+            }
+            return property;
+        });
+    }
+    loadPropertiesAsync(propertyLoadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.notNullOrUndefined(propertyLoadOption);
+            lazy_loading_manager_1.LazyLoadingManager.ensureLazyLoadingIsPossible(this._entity);
+            if (!this.hasMissingProperties(propertyLoadOption)) {
+                return false;
+            }
+            const cultureLoadOption = mapping_utilities_1.MappingUtilities.culturesToLoadOption([...this._entity.cultures]);
+            const loadConfig = new entity_load_configuration_1.EntityLoadConfiguration(cultureLoadOption, propertyLoadOption, relation_load_option_1.RelationLoadOption.None);
+            const tempEntity = yield this._client.entities.getAsync(this._entity.id, loadConfig);
+            this.importMissingProperties(tempEntity);
+            return true;
+        });
+    }
+    hasMissingProperties(propertyLoadOption) {
+        if (propertyLoadOption == null ||
+            propertyLoadOption.loadOption === load_options_1.LoadOption.None ||
+            propertyLoadOption.properties == null ||
+            propertyLoadOption.properties.length === 0) {
+            return false;
+        }
+        if (propertyLoadOption.loadOption === load_options_1.LoadOption.All) {
+            // We don't have any info about the definition here. (Same logic as in the C# SDK)
+            return true;
+        }
+        return propertyLoadOption.properties.some(requestedPropertyName => !this._properties[requestedPropertyName]);
+    }
+    importMissingProperties(entity) {
+        guard_1.default.notNullOrUndefined(entity);
+        for (const property of entity.properties) {
+            if (!this._properties[property.name]) {
+                this._properties[property.name] = property;
+            }
+        }
+    }
+    fetchPropertyAsync(name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Setup load configuration
+            const cultureLoadOption = mapping_utilities_1.MappingUtilities.culturesToLoadOption([...this._entity.cultures]);
+            const propertyLoadOption = new property_load_option_1.PropertyLoadOption(name);
+            const loadConfig = new entity_load_configuration_1.EntityLoadConfiguration(cultureLoadOption, propertyLoadOption, relation_load_option_1.RelationLoadOption.None);
+            // Load entity
+            const entity = yield this._client.entities.getAsync(this._entity.id, loadConfig);
+            if (entity == null) {
+                return null;
+            }
+            // We only loaded this specific property, so we can just take the first one.
+            const property = entity.properties[0] || null;
+            return property;
+        });
+    }
+}
+exports.PropertyManager = PropertyManager;
+//# sourceMappingURL=property-manager.js.map
+
+/***/ }),
+
+/***/ 4972:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PropertyBase = void 0;
+const guard_1 = __importDefault(__webpack_require__(4500));
+const data_type_1 = __webpack_require__(2728);
+const member_1 = __webpack_require__(6707);
+const member_definition_type_1 = __webpack_require__(7067);
+class PropertyBase extends member_1.MemberBase {
+    constructor(name, typeInfo, hasDataSource = false) {
+        super(name, member_definition_type_1.MemberDefinitionType.Property);
+        this.isMultiLanguage = false;
+        guard_1.default.notNullOrUndefined(typeInfo);
+        this.dataType = typeInfo.type;
+        this.isMultiValue = typeInfo.isArray;
+        this.hasDataSource = hasDataSource;
+    }
+    /**
+     * Returns a string representation of the current property instance.
+     *
+     * @remarks
+     * Can not be used for serialization. Only useful during debugging or testing.
+     * Returned format: \<member format ({@link MemberBase.toString})\> ({@link PropertyDataType})
+     */
+    toString() {
+        return `${super.toString()} (${data_type_1.PropertyDataType[this.dataType]})`;
+    }
+}
+exports.PropertyBase = PropertyBase;
+//# sourceMappingURL=property.js.map
+
+/***/ }),
+
+/***/ 7305:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationCardinality = void 0;
+/**
+ * Describes the cardinality of a relation.
+ * All values are from Parent =\> Child.
+ */
+var RelationCardinality;
+(function (RelationCardinality) {
+    /**
+     * One parent to many children.
+     */
+    RelationCardinality[RelationCardinality["OneToMany"] = 0] = "OneToMany";
+    /**
+     * Many parents to many children.
+     */
+    RelationCardinality[RelationCardinality["ManyToMany"] = 1] = "ManyToMany";
+    /**
+     * One parent to one child.
+     */
+    RelationCardinality[RelationCardinality["OneToOne"] = 2] = "OneToOne";
+})(RelationCardinality = exports.RelationCardinality || (exports.RelationCardinality = {}));
+//# sourceMappingURL=relation-cardinality.js.map
+
+/***/ }),
+
+/***/ 1602:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationContainer = void 0;
+const string_format_1 = __importDefault(__webpack_require__(7856));
+const error_messages_1 = __importDefault(__webpack_require__(8479));
+const guard_1 = __importDefault(__webpack_require__(4500));
+const relation_1 = __webpack_require__(2482);
+const relation_role_1 = __webpack_require__(2581);
+class RelationContainer {
+    constructor(relationName) {
+        guard_1.default.stringNotNullOrEmpty(relationName);
+        this.relationName = relationName;
+    }
+    get parentRelation() {
+        return this._parentRelation;
+    }
+    get childRelation() {
+        return this._childRelation;
+    }
+    /**
+     * Checks if the relation is self-referencing.
+     */
+    get isSelfRelation() {
+        return this.parentRelation != null && this.childRelation != null;
+    }
+    /**
+     * Checks if this contains any relation.
+     */
+    get isEmpty() {
+        return this.parentRelation == null && this.childRelation == null;
+    }
+    /**
+     * Checks if this contains any relation.
+     */
+    any() {
+        return this.parentRelation != null || this.childRelation != null;
+    }
+    /**
+     * Gets the relation. If role is null and the relation is self-referencing, it will throw.
+     * Returns null if there are no loaded relations.
+     * @param role - Relation role
+     */
+    getRelation(role) {
+        if (role == null) {
+            if (this.isSelfRelation) {
+                throw new Error((0, string_format_1.default)(error_messages_1.default.Entity.SelfReferencingRelation, this.relationName));
+            }
+            if (this.parentRelation != null) {
+                return this.parentRelation;
+            }
+            else {
+                return this.childRelation;
+            }
+        }
+        else if (role === relation_role_1.RelationRole.Parent) {
+            return this.parentRelation;
+        }
+        else if (role === relation_role_1.RelationRole.Child) {
+            return this.childRelation;
+        }
+        else {
+            throw new Error((0, string_format_1.default)(error_messages_1.default.RelationRoleMapper.UnknownRole, role));
+        }
+    }
+    /**
+     * Gets an array of all loaded relations.
+     */
+    getRelations() {
+        if (this.isSelfRelation) {
+            return [this.parentRelation, this.childRelation];
+        }
+        else if (this.parentRelation != null) {
+            return [this.parentRelation];
+        }
+        else if (this.childRelation != null) {
+            return [this.childRelation];
+        }
+        else {
+            return [];
+        }
+    }
+    /**
+     * Checks if the relation with specified role is loaded.
+     */
+    relationExists(role) {
+        if (role === relation_role_1.RelationRole.Parent) {
+            return this.parentRelation != null;
+        }
+        else if (role === relation_role_1.RelationRole.Child) {
+            return this.childRelation != null;
+        }
+        else {
+            throw new Error((0, string_format_1.default)(error_messages_1.default.RelationRoleMapper.UnknownRole, role));
+        }
+    }
+    /**
+     * Sets the relation on this container.
+     */
+    setRelation(relation) {
+        guard_1.default.notNullOrUndefined(relation);
+        if (this.relationName != relation.name) {
+            throw new Error(error_messages_1.default.Entity.RelationNameMustMatch);
+        }
+        if (relation_1.RelationBase.isParentRelation(relation)) {
+            this._parentRelation = relation;
+        }
+        else if (relation_1.RelationBase.isChildRelation(relation)) {
+            this._childRelation = relation;
+        }
+        else {
+            throw new Error((0, string_format_1.default)(error_messages_1.default.RelationRoleMapper.UnknownRole, relation.role));
+        }
+    }
+}
+exports.RelationContainer = RelationContainer;
+//# sourceMappingURL=relation-container.js.map
+
+/***/ }),
+
+/***/ 2384:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationDefinition = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const conditional_validation_resource_js_1 = __webpack_require__(789);
+const data_type_1 = __importDefault(__webpack_require__(2728));
+const member_definition_1 = __webpack_require__(1308);
+const member_definition_type_1 = __webpack_require__(7067);
+const relation_cardinality_1 = __webpack_require__(7305);
+const relation_role_1 = __webpack_require__(2581);
+let RelationDefinition = class RelationDefinition extends member_definition_1.MemberDefinition {
+    constructor(name, init) {
+        super(name, data_type_1.default.Relation);
+        this.allowNavigation = true;
+        this.nestedProperties = [];
+        this.associatedLabels = {};
+        Object.assign(this, init);
+    }
+    get definitionType() {
+        return member_definition_type_1.MemberDefinitionType.Relation;
+    }
+    get isMultiValue() {
+        return (this.cardinality === relation_cardinality_1.RelationCardinality.ManyToMany ||
+            (this.cardinality === relation_cardinality_1.RelationCardinality.OneToMany && this.role === relation_role_1.RelationRole.Parent));
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("role"),
+    __metadata("design:type", Number)
+], RelationDefinition.prototype, "role", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("cardinality"),
+    __metadata("design:type", Number)
+], RelationDefinition.prototype, "cardinality", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("associated_entitydefinition"),
+    __metadata("design:type", String)
+], RelationDefinition.prototype, "associatedEntityDefinitionName", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("child_is_mandatory"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "childIsMandatory", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("child_conditional_validation"),
+    (0, ta_json_1.JsonConverter)(conditional_validation_resource_js_1.ConditionalValidationResourceConverter),
+    __metadata("design:type", conditional_validation_resource_js_1.ConditionalValidationResource)
+], RelationDefinition.prototype, "childConditionalValidation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("parent_is_mandatory"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "parentIsMandatory", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("parent_conditional_validation"),
+    (0, ta_json_1.JsonConverter)(conditional_validation_resource_js_1.ConditionalValidationResourceConverter),
+    __metadata("design:type", conditional_validation_resource_js_1.ConditionalValidationResource)
+], RelationDefinition.prototype, "parentConditionalValidation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("inherits_security"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "inheritsSecurity", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("allow_navigation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "allowNavigation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_nested"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isNested", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("nested_properties"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], RelationDefinition.prototype, "nestedProperties", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("nested_permissions"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "nestedPermissions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_taxonomy_relation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isTaxonomyRelation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_taxonomy_hierarchy_relation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isTaxonomyHierarchyRelation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("content_is_copied"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "contentIsCopied", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("completion_is_copied"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "completionIsCopied", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_path_relation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isPathRelation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_path_hierarchy_relation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isPathHierarchyRelation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("path_hierarchy_score"),
+    __metadata("design:type", String)
+], RelationDefinition.prototype, "pathHierarchyScore", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("is_rendition_relation"),
+    __metadata("design:type", Boolean)
+], RelationDefinition.prototype, "isRenditionRelation", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("associated_labels"),
+    __metadata("design:type", Object)
+], RelationDefinition.prototype, "associatedLabels", void 0);
+RelationDefinition = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    (0, ta_json_1.JsonDiscriminatorValue)(data_type_1.default.Relation),
+    __metadata("design:paramtypes", [String, Object])
+], RelationDefinition);
+exports.RelationDefinition = RelationDefinition;
+//# sourceMappingURL=relation-definition.js.map
+
+/***/ }),
+
+/***/ 7343:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationManager = void 0;
+const base_types_1 = __webpack_require__(7519);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const culture_load_option_1 = __webpack_require__(4524);
+const entity_load_configuration_1 = __webpack_require__(8906);
+const load_options_1 = __webpack_require__(9754);
+const property_load_option_1 = __webpack_require__(9425);
+const relation_load_option_1 = __webpack_require__(6276);
+const relation_specification_1 = __webpack_require__(5984);
+const lazy_loading_manager_1 = __webpack_require__(9185);
+const relation_container_1 = __webpack_require__(1602);
+class RelationManager {
+    constructor(client, relations, entity) {
+        guard_1.default.notNullOrUndefined(client);
+        guard_1.default.notNullOrUndefined(relations);
+        guard_1.default.notNullOrUndefined(entity);
+        this._client = client;
+        this._entity = entity;
+        this._relations = new base_types_1.CaseInsensitiveStringMap();
+        for (const relation of relations) {
+            this.addRelation(relation);
+        }
+    }
+    get count() {
+        return this._count;
+    }
+    /**
+     * Gets the relation for the specified name. If role is null and the relation is self-referencing, it will throw.
+     * Returns null if there are no loaded relations.
+     * @param relationName - The name of the relation
+     * @param role - The role of the relation
+     * @returns A relation or null.
+     */
+    getRelation(relationName, role) {
+        guard_1.default.stringNotNullOrEmpty(relationName);
+        const container = this._relations[relationName];
+        if (!container) {
+            return null;
+        }
+        return container.getRelation(role);
+    }
+    /**
+     * Gets a list of all loaded relations.
+     */
+    getRelations() {
+        const relations = [];
+        for (const container of Object.values(this._relations)) {
+            if (container.isSelfRelation) {
+                Array.prototype.push.apply(relations, container.getRelations());
+            }
+            else {
+                relations.push(container.getRelation());
+            }
+        }
+        return relations;
+    }
+    /**
+     * Lazy loads a relation if it is not loaded yet, adds it to the loaded relations and returns it.
+     * If the relation does not exist, null will be returned.
+     * @param relationName - The name of the relation
+     * @param role - The role of the relation
+     * @returns A promise resolving to the relation or null.
+     */
+    loadRelationAsync(relationName, role) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.stringNotNullOrEmpty(relationName);
+            lazy_loading_manager_1.LazyLoadingManager.ensureLazyLoadingIsPossible(this._entity);
+            let relation = this.getRelation(relationName, role);
+            if (relation != null) {
+                return relation;
+            }
+            relation = yield this.fetchRelationAsync(relationName, role);
+            if (relation != null) {
+                this.addRelation(relation);
+            }
+            return relation;
+        });
+    }
+    /**
+     * Loads the specified relations.
+     * It will only load if it is actually missing relations and does not overwrite existing relations.
+     * @param relationLoadOption - Option specifying which relations to load
+     * @returns True when something was loaded.
+     */
+    loadRelationsAsync(relationLoadOption) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.notNullOrUndefined(relationLoadOption);
+            lazy_loading_manager_1.LazyLoadingManager.ensureLazyLoadingIsPossible(this._entity);
+            if (!this.hasMissingRelations(relationLoadOption)) {
+                return false;
+            }
+            const loadConfig = new entity_load_configuration_1.EntityLoadConfiguration(culture_load_option_1.CultureLoadOption.None, property_load_option_1.PropertyLoadOption.None, relationLoadOption);
+            const tempEntity = yield this._client.entities.getAsync(this._entity.id, loadConfig);
+            this.importMissingRelations(tempEntity);
+            return true;
+        });
+    }
+    /**
+     * Checks if the entity is missing relations that are specified in the {@link IRelationLoadOption}.
+     * @param relationLoadOption - Option specifying which relations to load
+     * @returns Boolean indicating if something is missing.
+     */
+    hasMissingRelations(relationLoadOption) {
+        if (relationLoadOption == null ||
+            relationLoadOption.loadOption === load_options_1.LoadOption.None ||
+            relationLoadOption.relations == null ||
+            relationLoadOption.relations.length === 0) {
+            return false;
+        }
+        if (relationLoadOption.loadOption === load_options_1.LoadOption.All) {
+            // We don't have any info about the definition here. (Same logic as in the C# SDK)
+            return true;
+        }
+        return relationLoadOption.relations.some(requestedRelation => !this.exists(requestedRelation.name, requestedRelation.role));
+    }
+    /**
+     * Checks if the specified relation is loaded. If role is null, any loaded role will return true.
+     * @param relationName - The name of the relation
+     * @param role - The role of the relation
+     * @returns Boolean indicating if the specified relation exists.
+     */
+    exists(relationName, role) {
+        guard_1.default.stringNotNullOrEmpty(relationName);
+        let exists = false;
+        const container = this._relations[relationName];
+        if (container) {
+            if (role == null) {
+                exists = container.any();
+            }
+            else {
+                exists = container.relationExists(role);
+            }
+        }
+        return exists;
+    }
+    /**
+     * Imports missing relations from the entity.
+     * @param tempEntity - An entity
+     */
+    importMissingRelations(tempEntity) {
+        guard_1.default.notNullOrUndefined(tempEntity);
+        for (const relation of tempEntity.relations) {
+            if (!this.exists(relation.name, relation.role)) {
+                this.addRelation(relation);
+            }
+        }
+    }
+    /**
+     * Fetches the relation from the server.
+     * @param relationName - The name of the relation
+     * @param role - The role of the relation
+     */
+    fetchRelationAsync(relationName, role) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const relationLoadOption = new relation_load_option_1.RelationLoadOption([new relation_specification_1.RelationSpecification(relationName, role)]);
+            const loadConfig = new entity_load_configuration_1.EntityLoadConfiguration(new culture_load_option_1.CultureLoadOption([...this._entity.cultures]), property_load_option_1.PropertyLoadOption.None, relationLoadOption);
+            const tempEntity = yield this._client.entities.getAsync(this._entity.id, loadConfig);
+            if (tempEntity == null) {
+                return null;
+            }
+            const relation = tempEntity.getRelation(relationName, role);
+            return relation;
+        });
+    }
+    /**
+     * Adds the relation to the loaded relations and updates the count (when the relation doesn't exist yet).
+     * @param relation - Relation to add
+     */
+    addRelation(relation) {
+        let container = this._relations[relation.name];
+        if (!container) {
+            container = new relation_container_1.RelationContainer(relation.name);
+            this._relations[relation.name] = container;
+        }
+        if (container.relationExists(relation.role)) {
+            return;
+        }
+        container.setRelation(relation);
+        this._count++;
+    }
+}
+exports.RelationManager = RelationManager;
+//# sourceMappingURL=relation-manager.js.map
+
+/***/ }),
+
+/***/ 2581:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationRole = void 0;
+/**
+ * Role of a relation.
+ */
+var RelationRole;
+(function (RelationRole) {
+    /**
+     * Parent.
+     */
+    RelationRole[RelationRole["Parent"] = 0] = "Parent";
+    /**
+     * Child.
+     */
+    RelationRole[RelationRole["Child"] = 1] = "Child";
+})(RelationRole = exports.RelationRole || (exports.RelationRole = {}));
+//# sourceMappingURL=relation-role.js.map
+
+/***/ }),
+
+/***/ 2482:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChildRelationBase = exports.RelationBase = void 0;
+const guard_1 = __importDefault(__webpack_require__(4500));
+const entity_load_configuration_1 = __webpack_require__(8906);
+const member_1 = __webpack_require__(6707);
+const member_definition_type_1 = __webpack_require__(7067);
+const relation_role_1 = __webpack_require__(2581);
+class RelationBase extends member_1.MemberBase {
+    constructor(name, properties = null, client) {
+        super(name, member_definition_type_1.MemberDefinitionType.Relation);
+        this.client = client;
+        this.properties = properties == null ? {} : properties;
+    }
+    setIdentifiersAsync(identifiers) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.arrayNoneNullOrEmptyString(identifiers);
+            guard_1.default.notNullOrUndefined(this.client);
+            const entities = yield this.client.entities.getManyAsync(identifiers, entity_load_configuration_1.EntityLoadConfiguration.Minimal);
+            this.setIds((_a = entities === null || entities === void 0 ? void 0 : entities.filter(x => x.id !== null).map(x => x.id)) !== null && _a !== void 0 ? _a : []);
+        });
+    }
+    getTypeName() {
+        return relation_role_1.RelationRole[this.role];
+    }
+    static isChildRelation(r) {
+        return r.role === relation_role_1.RelationRole.Child;
+    }
+    static isChildToOneParentRelation(r) {
+        return r.role === relation_role_1.RelationRole.Child && !r.isMultiValue;
+    }
+    static isChildToManyParentsRelation(r) {
+        return r.role === relation_role_1.RelationRole.Child && r.isMultiValue;
+    }
+    static isParentRelation(r) {
+        return r.role === relation_role_1.RelationRole.Parent;
+    }
+    static isParentToOneChildRelation(r) {
+        return r.role === relation_role_1.RelationRole.Parent && !r.isMultiValue;
+    }
+    static isParentToManyChildrenRelation(r) {
+        return r.role === relation_role_1.RelationRole.Parent && r.isMultiValue;
+    }
+}
+exports.RelationBase = RelationBase;
+class ChildRelationBase extends RelationBase {
+    constructor(name, properties, client) {
+        super(name, properties, client);
+        this.inheritsSecurity = true;
+    }
+}
+exports.ChildRelationBase = ChildRelationBase;
+//# sourceMappingURL=relation.js.map
+
+/***/ }),
+
+/***/ 5663:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ParentToManyChildrenRelation = void 0;
+const dirty_value_calculator_1 = __importDefault(__webpack_require__(4513));
+const guard_1 = __importDefault(__webpack_require__(4500));
+const entity_load_configuration_1 = __webpack_require__(8906);
+const relation_1 = __webpack_require__(2482);
+const relation_role_1 = __webpack_require__(2581);
+class ParentToManyChildrenRelation extends relation_1.RelationBase {
+    constructor(name, properties = null, client) {
+        super(name, properties, client);
+        this._children = [];
+        this.role = relation_role_1.RelationRole.Parent;
+        this.isMultiValue = true;
+    }
+    get isDirty() {
+        if (!this.isTracking) {
+            return false;
+        }
+        else {
+            return this._dirtyValueCalculator.isDirty(this._children);
+        }
+    }
+    get children() {
+        return this._children.slice();
+    }
+    getIds() {
+        return this._children.slice();
+    }
+    setIds(ids) {
+        guard_1.default.validIds(ids);
+        this._children.splice(0, this._children.length);
+        this._children.push(...ids);
+    }
+    clear() {
+        this._children.splice(0, this._children.length);
+    }
+    add(id) {
+        guard_1.default.validId(id);
+        if (!this._children.includes(id)) {
+            this._children.push(id);
+        }
+    }
+    addRange(ids) {
+        guard_1.default.validIds(ids);
+        ids.forEach(id => {
+            if (!this._children.includes(id)) {
+                this._children.push(id);
+            }
+        });
+    }
+    addAsync(identifier) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.notNullOrUndefined(this.client);
+            guard_1.default.stringNotNullOrEmpty(identifier);
+            const entity = yield this.client.entities.getAsync(identifier, entity_load_configuration_1.EntityLoadConfiguration.Minimal);
+            if (entity && entity.id) {
+                this.add(entity.id);
+            }
+        });
+    }
+    addRangeAsync(identifiers) {
+        return __awaiter(this, void 0, void 0, function* () {
+            guard_1.default.notNullOrUndefined(this.client);
+            guard_1.default.arrayNoneNullOrEmptyString(identifiers);
+            const entities = yield this.client.entities.getManyAsync(identifiers, entity_load_configuration_1.EntityLoadConfiguration.Minimal);
+            if (entities) {
+                this.addRange(entities.filter(x => x.id !== null).map(x => x.id));
+            }
+        });
+    }
+    startTracking() {
+        if (this.isTracking)
+            return;
+        this.isTracking = true;
+        this._dirtyValueCalculator = new dirty_value_calculator_1.default();
+        this._dirtyValueCalculator.setOriginalValue(this._children);
+    }
+    markClean() {
+        if (this.isTracking) {
+            this._dirtyValueCalculator.setOriginalValue(this._children);
+        }
+    }
+    getChildProperties(id) {
+        return this.properties[id] == null ? {} : this.properties[id];
+    }
+}
+exports.ParentToManyChildrenRelation = ParentToManyChildrenRelation;
+//# sourceMappingURL=parent-to-many-children-relation.js.map
+
+/***/ }),
+
+/***/ 6816:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+//# sourceMappingURL=resource.js.map
+
+/***/ }),
+
+/***/ 5344:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.StringContentType = void 0;
+/**
+ * Types of string content.
+ */
+var StringContentType;
+(function (StringContentType) {
+    /**
+     * Content represents a single line string.
+     */
+    StringContentType["SingleLine"] = "SingleLine";
+    /**
+     * Content represents multiple lines of string.
+     */
+    StringContentType["MultiLine"] = "MultiLine";
+    /**
+     * Content represents a HTML code.
+     */
+    StringContentType["Html"] = "Html";
+    /**
+     * Content represents programming syntax, scripts, data formats like JSON...
+     */
+    StringContentType["Code"] = "Code";
+})(StringContentType = exports.StringContentType || (exports.StringContentType = {}));
+//# sourceMappingURL=string-content-type.js.map
+
+/***/ }),
+
+/***/ 4524:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var CultureLoadOption_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CultureLoadOption = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const load_options_1 = __webpack_require__(9754);
+let CultureLoadOption = CultureLoadOption_1 = class CultureLoadOption {
+    constructor(param) {
+        var _a;
+        this.loadOption = load_options_1.LoadOption.None;
+        this.cultures = [];
+        if (param == null) {
+            return;
+        }
+        else if (param instanceof CultureLoadOption_1) {
+            this.cultures = [...param.cultures];
+            this.loadOption = param.loadOption;
+        }
+        else if (param instanceof Array) {
+            this.cultures = [...param];
+            this.loadOption = this.cultures.length ? load_options_1.LoadOption.Custom : load_options_1.LoadOption.None;
+        }
+        else if (typeof param === "object") {
+            this.cultures = [...((_a = param.cultures) !== null && _a !== void 0 ? _a : [])];
+            this.loadOption = param.loadOption != null ? param.loadOption : load_options_1.LoadOption.Custom;
+        }
+        else {
+            this.loadOption = param;
+        }
+    }
+    deepClone() {
+        return new CultureLoadOption_1({ cultures: [...this.cultures], loadOption: this.loadOption });
+    }
+};
+/**
+ * Load no cultures.
+ */
+CultureLoadOption.None = new CultureLoadOption_1(load_options_1.LoadOption.None);
+/**
+ * Load the default culture.
+ */
+CultureLoadOption.Default = new CultureLoadOption_1(load_options_1.LoadOption.Default);
+/**
+ * Load all cultures.
+ */
+CultureLoadOption.All = new CultureLoadOption_1(load_options_1.LoadOption.All);
+__decorate([
+    (0, ta_json_1.JsonProperty)("load_option"),
+    __metadata("design:type", Number)
+], CultureLoadOption.prototype, "loadOption", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("cultures"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], CultureLoadOption.prototype, "cultures", void 0);
+CultureLoadOption = CultureLoadOption_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], CultureLoadOption);
+exports.CultureLoadOption = CultureLoadOption;
+//# sourceMappingURL=culture-load-option.js.map
+
+/***/ }),
+
+/***/ 1652:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityLoadConfigurationBuilder = void 0;
+const guard_1 = __importDefault(__webpack_require__(4500));
+const culture_load_option_1 = __webpack_require__(4524);
+const entity_load_configuration_1 = __webpack_require__(8906);
+const load_options_1 = __webpack_require__(9754);
+const property_load_option_1 = __webpack_require__(9425);
+const relation_load_option_1 = __webpack_require__(6276);
+const relation_specification_1 = __webpack_require__(5984);
+class EntityLoadConfigurationBuilder {
+    constructor(entityLoadConfiguration) {
+        this._entityLoadConfiguration = new entity_load_configuration_1.EntityLoadConfiguration();
+        if (entityLoadConfiguration)
+            this._entityLoadConfiguration = entityLoadConfiguration.deepClone();
+    }
+    inCultures(option) {
+        guard_1.default.notNullOrUndefined(option);
+        if (option instanceof Array) {
+            this._entityLoadConfiguration.cultureLoadOption =
+                this._entityLoadConfiguration.cultureLoadOption || new culture_load_option_1.CultureLoadOption();
+            this._entityLoadConfiguration.cultureLoadOption.loadOption = load_options_1.LoadOption.Custom;
+            this._entityLoadConfiguration.cultureLoadOption.cultures = [
+                ...new Set((this._entityLoadConfiguration.cultureLoadOption.cultures || []).concat(option)),
+            ];
+        }
+        else {
+            this._entityLoadConfiguration.cultureLoadOption =
+                this._entityLoadConfiguration.cultureLoadOption || new culture_load_option_1.CultureLoadOption();
+            this._entityLoadConfiguration.cultureLoadOption.loadOption = option;
+        }
+        return this;
+    }
+    inCulture(culture) {
+        guard_1.default.notUndefined(culture);
+        guard_1.default.stringNotNullOrEmpty(culture);
+        return this.inCultures([culture]);
+    }
+    withProperties(option) {
+        guard_1.default.notNullOrUndefined(option);
+        if (option instanceof Array) {
+            this._entityLoadConfiguration.propertyLoadOption =
+                this._entityLoadConfiguration.propertyLoadOption || new property_load_option_1.PropertyLoadOption();
+            this._entityLoadConfiguration.propertyLoadOption.loadOption = load_options_1.LoadOption.Custom;
+            this._entityLoadConfiguration.propertyLoadOption.properties = [
+                ...new Set((this._entityLoadConfiguration.propertyLoadOption.properties || []).concat(option)),
+            ];
+        }
+        else {
+            this._entityLoadConfiguration.propertyLoadOption =
+                this._entityLoadConfiguration.propertyLoadOption || new property_load_option_1.PropertyLoadOption();
+            this._entityLoadConfiguration.propertyLoadOption.loadOption = option;
+        }
+        return this;
+    }
+    withProperty(property) {
+        guard_1.default.notUndefined(property);
+        guard_1.default.stringNotNullOrEmpty(property);
+        return this.withProperties([property]);
+    }
+    withRelations(option) {
+        guard_1.default.notNullOrUndefined(option);
+        if (option instanceof Array) {
+            let relationSpecifications = option.map(relation => {
+                return typeof relation === "string" ? new relation_specification_1.RelationSpecification(relation) : relation;
+            });
+            this._entityLoadConfiguration.relationLoadOption =
+                this._entityLoadConfiguration.relationLoadOption || new relation_load_option_1.RelationLoadOption();
+            this._entityLoadConfiguration.relationLoadOption.loadOption = load_options_1.LoadOption.Custom;
+            relationSpecifications = relationSpecifications.filter(value => {
+                return (this._entityLoadConfiguration.relationLoadOption.relations.findIndex(relationValue => {
+                    if (typeof value === "string") {
+                        return relationValue.name === value;
+                    }
+                    else {
+                        return relationValue.deepEquals(value);
+                    }
+                }) === -1);
+            });
+            this._entityLoadConfiguration.relationLoadOption.relations = (this._entityLoadConfiguration.relationLoadOption.relations || []).concat(relationSpecifications);
+        }
+        else {
+            this._entityLoadConfiguration.relationLoadOption =
+                this._entityLoadConfiguration.relationLoadOption || new relation_load_option_1.RelationLoadOption();
+            this._entityLoadConfiguration.relationLoadOption.loadOption = option;
+        }
+        return this;
+    }
+    withRelation(relation, role) {
+        guard_1.default.notUndefined(relation);
+        guard_1.default.stringNotNullOrEmpty(relation);
+        return this.withRelations([new relation_specification_1.RelationSpecification(relation, role)]);
+    }
+    build() {
+        return this._entityLoadConfiguration.deepClone();
+    }
+}
+exports.EntityLoadConfigurationBuilder = EntityLoadConfigurationBuilder;
+//# sourceMappingURL=entity-load-configuration-builder.js.map
+
+/***/ }),
+
+/***/ 8906:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var EntityLoadConfiguration_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityLoadConfiguration = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const culture_load_option_1 = __webpack_require__(4524);
+const entity_load_configuration_builder_1 = __webpack_require__(1652);
+const property_load_option_1 = __webpack_require__(9425);
+const relation_load_option_1 = __webpack_require__(6276);
+let EntityLoadConfiguration = EntityLoadConfiguration_1 = class EntityLoadConfiguration {
+    constructor(cultureLoadOption, propertyLoadOption, relationLoadOption) {
+        if (cultureLoadOption)
+            this.cultureLoadOption = cultureLoadOption;
+        if (propertyLoadOption)
+            this.propertyLoadOption = propertyLoadOption;
+        if (relationLoadOption)
+            this.relationLoadOption = relationLoadOption;
+    }
+    builder() {
+        return new entity_load_configuration_builder_1.EntityLoadConfigurationBuilder(this);
+    }
+    deepClone() {
+        return new EntityLoadConfiguration_1(this.cultureLoadOption && this.cultureLoadOption.deepClone(), this.propertyLoadOption && this.propertyLoadOption.deepClone(), this.relationLoadOption && this.relationLoadOption.deepClone());
+    }
+};
+/**
+ * Only load system properties.
+ */
+EntityLoadConfiguration.Minimal = new EntityLoadConfiguration_1(culture_load_option_1.CultureLoadOption.None, property_load_option_1.PropertyLoadOption.None, relation_load_option_1.RelationLoadOption.None);
+/**
+ * Gets the entities in default culture with all properties and no relations.
+ */
+EntityLoadConfiguration.Default = new EntityLoadConfiguration_1(culture_load_option_1.CultureLoadOption.Default, property_load_option_1.PropertyLoadOption.All, relation_load_option_1.RelationLoadOption.None);
+/**
+ * Get the entities in default culture with all properties and relations.
+ */
+EntityLoadConfiguration.DefaultCultureFull = new EntityLoadConfiguration_1(culture_load_option_1.CultureLoadOption.Default, property_load_option_1.PropertyLoadOption.All, relation_load_option_1.RelationLoadOption.All);
+/**
+ * Get the entity in all installed cultures with all properties and relations.
+ */
+EntityLoadConfiguration.Full = new EntityLoadConfiguration_1(culture_load_option_1.CultureLoadOption.All, property_load_option_1.PropertyLoadOption.All, relation_load_option_1.RelationLoadOption.All);
+__decorate([
+    (0, ta_json_1.JsonProperty)("culture_option"),
+    __metadata("design:type", Object)
+], EntityLoadConfiguration.prototype, "cultureLoadOption", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("property_option"),
+    __metadata("design:type", Object)
+], EntityLoadConfiguration.prototype, "propertyLoadOption", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("relation_option"),
+    __metadata("design:type", Object)
+], EntityLoadConfiguration.prototype, "relationLoadOption", void 0);
+EntityLoadConfiguration = EntityLoadConfiguration_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object, Object, Object])
+], EntityLoadConfiguration);
+exports.EntityLoadConfiguration = EntityLoadConfiguration;
+//# sourceMappingURL=entity-load-configuration.js.map
+
+/***/ }),
+
+/***/ 9754:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LoadOption = void 0;
+var LoadOption;
+(function (LoadOption) {
+    LoadOption[LoadOption["None"] = 0] = "None";
+    LoadOption[LoadOption["Default"] = 1] = "Default";
+    LoadOption[LoadOption["Custom"] = 2] = "Custom";
+    LoadOption[LoadOption["All"] = 3] = "All";
+})(LoadOption = exports.LoadOption || (exports.LoadOption = {}));
+//# sourceMappingURL=load-options.js.map
+
+/***/ }),
+
+/***/ 315:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberLoadOption = void 0;
+var MemberLoadOption;
+(function (MemberLoadOption) {
+    /**
+     * Restricts getting members to members that are already loaded.
+     */
+    MemberLoadOption[MemberLoadOption["LocalOnly"] = 0] = "LocalOnly";
+    /**
+     * Allows members to be lazy loaded when needed.
+     * For performance reasons, this should be used wisely.
+     */
+    MemberLoadOption[MemberLoadOption["LazyLoading"] = 1] = "LazyLoading";
+})(MemberLoadOption = exports.MemberLoadOption || (exports.MemberLoadOption = {}));
+//# sourceMappingURL=member-load-option.js.map
+
+/***/ }),
+
+/***/ 9425:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var PropertyLoadOption_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PropertyLoadOption = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const load_options_1 = __webpack_require__(9754);
+let PropertyLoadOption = PropertyLoadOption_1 = class PropertyLoadOption {
+    constructor(param) {
+        this.loadOption = load_options_1.LoadOption.None;
+        this.properties = [];
+        if (param == null) {
+            return;
+        }
+        else if (param instanceof PropertyLoadOption_1) {
+            this.loadOption = param.loadOption;
+            this.properties = [...param.properties];
+        }
+        else if (typeof param === "string") {
+            guard_1.default.stringNotNullOrEmpty(param);
+            this.loadOption = load_options_1.LoadOption.Custom;
+            this.properties = [param];
+        }
+        else if (param instanceof Array) {
+            guard_1.default.arrayNotEmpty(param);
+            this.loadOption = load_options_1.LoadOption.Custom;
+            this.properties = [...param];
+        }
+        else {
+            this.loadOption = param;
+        }
+    }
+    deepClone() {
+        return ta_json_1.JSON.deserialize(ta_json_1.JSON.serialize(this), PropertyLoadOption_1);
+    }
+};
+/**
+ * Load no properties.
+ */
+PropertyLoadOption.None = new PropertyLoadOption_1(load_options_1.LoadOption.None);
+/**
+ * Load all properties.
+ */
+PropertyLoadOption.All = new PropertyLoadOption_1(load_options_1.LoadOption.All);
+__decorate([
+    (0, ta_json_1.JsonProperty)("load_option"),
+    __metadata("design:type", Number)
+], PropertyLoadOption.prototype, "loadOption", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("properties"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], PropertyLoadOption.prototype, "properties", void 0);
+PropertyLoadOption = PropertyLoadOption_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], PropertyLoadOption);
+exports.PropertyLoadOption = PropertyLoadOption;
+//# sourceMappingURL=property-load-option.js.map
+
+/***/ }),
+
+/***/ 6276:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var RelationLoadOption_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationLoadOption = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const guard_1 = __importDefault(__webpack_require__(4500));
+const type_guards_1 = __webpack_require__(2542);
+const load_options_1 = __webpack_require__(9754);
+const relation_specification_1 = __webpack_require__(5984);
+let RelationLoadOption = RelationLoadOption_1 = class RelationLoadOption {
+    constructor(param) {
+        this.loadOption = load_options_1.LoadOption.None;
+        this.relations = [];
+        if (param == null) {
+            return;
+        }
+        else if (param instanceof RelationLoadOption_1) {
+            this.loadOption = param.loadOption;
+            this.relations = [...param.relations];
+        }
+        else if (param instanceof Array) {
+            guard_1.default.arrayNotEmpty(param);
+            this.loadOption = load_options_1.LoadOption.Custom;
+            if (type_guards_1.TypeGuards.isStringArray(param)) {
+                this.relations = param.map((relationName) => {
+                    return new relation_specification_1.RelationSpecification(relationName);
+                });
+            }
+            else {
+                this.relations = [...param];
+            }
+        }
+        else {
+            this.loadOption = param;
+        }
+    }
+    deepClone() {
+        return ta_json_1.JSON.deserialize(ta_json_1.JSON.serialize(this), RelationLoadOption_1);
+    }
+};
+/**
+ * Load no relations.
+ */
+RelationLoadOption.None = new RelationLoadOption_1(load_options_1.LoadOption.None);
+/**
+ * Load all relations.
+ */
+RelationLoadOption.All = new RelationLoadOption_1(load_options_1.LoadOption.All);
+__decorate([
+    (0, ta_json_1.JsonProperty)("load_option"),
+    __metadata("design:type", Number)
+], RelationLoadOption.prototype, "loadOption", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("relations"),
+    (0, ta_json_1.JsonElementType)(relation_specification_1.RelationSpecification),
+    __metadata("design:type", Array)
+], RelationLoadOption.prototype, "relations", void 0);
+RelationLoadOption = RelationLoadOption_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], RelationLoadOption);
+exports.RelationLoadOption = RelationLoadOption;
+//# sourceMappingURL=relation-load-option.js.map
+
+/***/ }),
+
+/***/ 5984:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var RelationSpecification_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationSpecification = void 0;
+const ta_json_1 = __webpack_require__(5459);
+let RelationSpecification = RelationSpecification_1 = class RelationSpecification {
+    constructor(name, role) {
+        this.role = null;
+        this.name = name;
+        this.role = role !== null && role !== void 0 ? role : null;
+    }
+    deepClone() {
+        return new RelationSpecification_1(this.name, this.role);
+    }
+    deepEquals(other) {
+        if (!other)
+            return false;
+        return other.name === this.name && ((!other.role && !this.role) || other.role === this.role);
+    }
+    onDeserialized() {
+        var _a;
+        this.role = (_a = this.role) !== null && _a !== void 0 ? _a : null;
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("name"),
+    __metadata("design:type", String)
+], RelationSpecification.prototype, "name", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("role"),
+    __metadata("design:type", Object)
+], RelationSpecification.prototype, "role", void 0);
+__decorate([
+    (0, ta_json_1.OnDeserialized)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], RelationSpecification.prototype, "onDeserialized", null);
+RelationSpecification = RelationSpecification_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [String, Object])
+], RelationSpecification);
+exports.RelationSpecification = RelationSpecification;
+//# sourceMappingURL=relation-specification.js.map
+
+/***/ }),
+
+/***/ 2078:
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MemberConditionConverter = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const base_1 = __webpack_require__(2181);
+const invalid_operation_error_1 = __webpack_require__(3220);
+class MemberConditionConverter {
+    /**
+     * Serializes a MemberCondition instance into JSON Value.
+     *
+     * @param value - A MemberCondition instance
+     *
+     * @returns An JSON Value.
+     */
+    serialize(value) {
+        return ta_json_1.TaJson.serialize(value);
+    }
+    /**
+     * Deserializes a JSON Value into a MemberCondition instance.
+     *
+     * @param value - A JSON Value
+     *
+     * @returns A MemberCondition instance.
+     */
+    deserialize(value) {
+        if (!value) {
+            throw new invalid_operation_error_1.InvalidOperationError("Can't deserialize falsy value.");
+        }
+        else if (typeof value !== "object" || value instanceof Array) {
+            throw new invalid_operation_error_1.InvalidOperationError(`Expected a value of type 'object', but value was of type '${typeof value}'.`);
+        }
+        const obj = typeof value === "string" ? JSON.parse(value) : value;
+        if (obj.definitionId) {
+            return ta_json_1.TaJson.deserialize(value, base_1.NoAncestorMemberCondition);
+        }
+        else if (typeof obj.value === "string") {
+            return ta_json_1.TaJson.deserialize(value, base_1.StringMemberCondition);
+        }
+        else if (typeof obj.value === "boolean") {
+            return ta_json_1.TaJson.deserialize(value, base_1.BooleanMemberCondition);
+        }
+        else if (obj.entityId) {
+            return ta_json_1.TaJson.deserialize(value, base_1.RelationMemberCondition);
+        }
+        else {
+            throw new invalid_operation_error_1.InvalidOperationError("Not a known condition format");
+        }
+    }
+}
+exports.MemberConditionConverter = MemberConditionConverter;
+//# sourceMappingURL=member-condition-converter.js.map
+
+/***/ }),
+
 /***/ 6679:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -7162,6 +10427,262 @@ const CONSTANTS = {
 };
 exports.InvariantCulture = CONSTANTS.Invariant;
 //# sourceMappingURL=culture-info.js.map
+
+/***/ }),
+
+/***/ 4513:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class DirtyValueCalculator {
+    setOriginalValue(value) {
+        this._originalHashValue = this.computeHash(value);
+    }
+    isDirty(currentValue) {
+        return this.computeHash(currentValue) !== this._originalHashValue;
+    }
+    computeHash(value) {
+        return this.getStringHash(`${typeof value}_${JSON.stringify(value)}`);
+    }
+    getStringHash(str) {
+        let hash1 = 5381;
+        let hash2 = 52711;
+        let i = str.length;
+        while (i--) {
+            const char = str.charCodeAt(i);
+            hash1 = (hash1 * 33) ^ char;
+            hash2 = (hash2 * 33) ^ char;
+        }
+        return ((hash1 >>> 0) << 12) + (hash2 >>> 0);
+    }
+}
+exports["default"] = DirtyValueCalculator;
+//# sourceMappingURL=dirty-value-calculator.js.map
+
+/***/ }),
+
+/***/ 8217:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EntityLink = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const link_1 = __importDefault(__webpack_require__(5238));
+let EntityLink = class EntityLink extends link_1.default {
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("properties"),
+    __metadata("design:type", Object)
+], EntityLink.prototype, "properties", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("renditions"),
+    __metadata("design:type", Object)
+], EntityLink.prototype, "renditions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("permissions"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], EntityLink.prototype, "permissions", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("identifier"),
+    __metadata("design:type", String)
+], EntityLink.prototype, "identifier", void 0);
+EntityLink = __decorate([
+    (0, ta_json_1.JsonObject)()
+], EntityLink);
+exports.EntityLink = EntityLink;
+//# sourceMappingURL=entity-link.js.map
+
+/***/ }),
+
+/***/ 8479:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class ErrorMessages {
+}
+exports["default"] = ErrorMessages;
+ErrorMessages.ContentHubClient = Object.freeze({
+    IncompatibleVersionsPre3_0: "The JavaScript SDK version and server version are incompatible. The Web SDK is only supported in M 3.0 and later.",
+    IncompatibleMinimumVersion: "The JavaScript SDK version ({0}) and server version ({1}) are incompatible. Server requires SDK version of minimum '{2}'.",
+    IncompatibleVersion: "The JavaScript SDK version ({0}) and server version ({1}) are incompatible because the SDK is newer than the server. " +
+        "Please use an older version of the SDK.",
+    NotSupportedFeature: "This feature is not supported in Content Hub version '{0}'. It was introduced in version '{1}'.",
+});
+ErrorMessages.QueryingClient = Object.freeze({
+    MultipleResultsWhenOneExpected: "Server returned multiple entities, when only one was expected.",
+    MultipleResults: "Query returned multiple results.",
+});
+ErrorMessages.EntitiesClient = Object.freeze({
+    UnableToExtractEntityIdFromHeader: "Unable to extract entity id from location header.",
+    UnableToExtractLocationHeaderFromResponse: "Unable to extract location header from response.",
+});
+ErrorMessages.PoliciesClient = Object.freeze({
+    RelatedIdCannotBeNull: "The id of the entity this policy relates to cannot be null.",
+});
+ErrorMessages.CultureLoader = Object.freeze({
+    CouldNotFindCultures: "Could not find any cultures.",
+});
+ErrorMessages.NoPermissionsOnNewEntity = "Cannot load permissions on an entity that has not been persisted yet.";
+ErrorMessages.UnknownMemberCondition = "MemberCondition '{0}' is not supported.";
+ErrorMessages.UnsupportedMemberDefinition = "MemberDefinition with name '{0}' and type '{1}' is not supported.";
+ErrorMessages.NoRoleSpecifiedForSelfRelation = "Relation with name '{0}' is self-relation, but had no role specified";
+// Entity
+ErrorMessages.Entity = Object.freeze({
+    CannotLazyLoad: "Cannot do any lazy loading on an entity that has not been persisted yet.",
+    CultureRequired: "Culture is required for culture sensitive properties.",
+    CultureNotSupported: "Culture insensitive properties do not support cultures.",
+    SelfReferencingRelation: "Relation '{0}' is self referencing and multiple relation instances match. Specify the relation role.",
+    RelationNameMustMatch: "Relation names do not match.",
+    NoPermissionsOnNewEntity: "Cannot load permissions on an entity that has not been persisted yet.",
+    PropertyNotFound: "Property with name '{0}' does not exist or is not loaded on entity with id '{1}' and definition '{2}'.",
+    PropertyDoesNotExist: "Property with name '{0}' does not exist on definition '{1}'.",
+    RelationNotFound: "Relation with name '{0}' does not exist or is not loaded on entity with id '{1}' and definition '{2}'.",
+    RelationDoesNotExist: "Relation with name '{0}' does not exist on definition '{1}'.",
+    MultipleRelationsFound: "Found multiple relations with the same name and role.",
+    SetIdentifierOnExistingEntity: "Cannot set identifier on an existing entity.",
+});
+ErrorMessages.EntityFactory = Object.freeze({
+    DefinitionDoesNotExist: "Definition with name '{0}' does not exist.",
+});
+ErrorMessages.PropertyFactory = Object.freeze({
+    MustBeCultureSensitive: "Property with name '{0}' must be culture sensitive.",
+    CannotBeCultureSensitive: "Property with name '{0}' can't be culture sensitive.",
+});
+// Relation mapper
+ErrorMessages.UnsupportedRelation = "A relation with cardinality '{0}' and role '{1}' is not supported.";
+// Option list
+ErrorMessages.UnknownOptionListType = "Option list type with name '{0}' is not supported.";
+ErrorMessages.FinalLifeCycleStatusMapper = Object.freeze({
+    UnknownStatus: "LifeCycleStatus '{0}' is not supported.",
+});
+ErrorMessages.RelationRoleMapper = Object.freeze({
+    UnknownRole: "Role '{0}' is not supported.",
+});
+//# sourceMappingURL=error-messages.js.map
+
+/***/ }),
+
+/***/ 3321:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ArgumentError = void 0;
+class ArgumentError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ArgumentError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.ArgumentError = ArgumentError;
+//# sourceMappingURL=argument-error.js.map
+
+/***/ }),
+
+/***/ 9741:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ForbiddenError = void 0;
+class ForbiddenError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ForbiddenError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.ForbiddenError = ForbiddenError;
+//# sourceMappingURL=forbidden-error.js.map
+
+/***/ }),
+
+/***/ 3220:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.InvalidOperationError = void 0;
+class InvalidOperationError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "InvalidOperationError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.InvalidOperationError = InvalidOperationError;
+//# sourceMappingURL=invalid-operation-error.js.map
+
+/***/ }),
+
+/***/ 2145:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotFoundError = void 0;
+class NotFoundError extends Error {
+    constructor(message, response) {
+        super(message);
+        Object.setPrototypeOf(this, new.target.prototype);
+        this.response = response;
+    }
+}
+exports.NotFoundError = NotFoundError;
+//# sourceMappingURL=not-found-error.js.map
+
+/***/ }),
+
+/***/ 340:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotLoadedError = void 0;
+class NotLoadedError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "NotLoadedError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.NotLoadedError = NotLoadedError;
+//# sourceMappingURL=not-loaded-error.js.map
+
+/***/ }),
+
+/***/ 1029:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SchemaError = void 0;
+class SchemaError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "SchemaError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.SchemaError = SchemaError;
+//# sourceMappingURL=schema-error.js.map
 
 /***/ }),
 
@@ -7202,6 +10723,26 @@ class ValidationFailure {
 }
 exports.ValidationFailure = ValidationFailure;
 //# sourceMappingURL=validation-failure.js.map
+
+/***/ }),
+
+/***/ 1156:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.WebApiError = void 0;
+class WebApiError extends Error {
+    constructor(message, statusCode, responseMessage) {
+        super(message);
+        this.name = "WebApiError";
+        Object.setPrototypeOf(this, new.target.prototype);
+        this.statusCode = statusCode;
+        this.responseMessage = responseMessage;
+    }
+}
+exports.WebApiError = WebApiError;
+//# sourceMappingURL=web-api-error.js.map
 
 /***/ }),
 
@@ -7353,6 +10894,242 @@ Guard.lessThan = (number, maxValue) => ow_1.default.create(ow_1.default.number.l
 Guard.lessThanOrEqual = (number, maxValue) => ow_1.default.create(ow_1.default.number.lessThanOrEqual(maxValue))(number);
 Guard.isNumber = ow_1.default.create(ow_1.default.number);
 //# sourceMappingURL=guard.js.map
+
+/***/ }),
+
+/***/ 5238:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var Link_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const urijs_1 = __importDefault(__webpack_require__(4998));
+const ta_json_1 = __webpack_require__(5459);
+const guard_1 = __importDefault(__webpack_require__(4500));
+let Link = Link_1 = class Link {
+    constructor(uri, title, templated) {
+        this.templated = false;
+        if (typeof uri === "string") {
+            this.href = uri;
+        }
+        else {
+            this.href = uri.href();
+        }
+        if (title) {
+            this.title = title;
+        }
+        this.templated = !!templated;
+    }
+    getVariableValue(template, variable) {
+        guard_1.default.notNullOrUndefined(template);
+        guard_1.default.stringNotNullOrEmpty(variable);
+        guard_1.default.stringNotNullOrEmpty(this.href);
+        const templateUri = new urijs_1.default(template.href);
+        const currentUri = new urijs_1.default(this.href);
+        const index = templateUri
+            .path()
+            .split("/")
+            .findIndex(item => item.startsWith(`{${variable}}`));
+        if (index) {
+            return decodeURIComponent(currentUri.path().split("/")[index]);
+        }
+        let queryRegexStr = `\?|,${variable.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")},|$`;
+        let queryRegex = new RegExp(queryRegexStr);
+        if (queryRegex.test(templateUri.query())) {
+            queryRegexStr = `(?:^|&)${variable.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")}=([^#&]+)(?:[#&]?|$)`;
+            queryRegex = new RegExp(queryRegexStr);
+            const matches = queryRegex.exec(currentUri.query());
+            if (matches) {
+                return decodeURIComponent(matches[1]);
+            }
+        }
+        throw `Variable '${variable}' not found in template '${template.href}'.`;
+    }
+    static copyFrom(source) {
+        return new Link_1(source.href, source.title, source.templated);
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("href"),
+    __metadata("design:type", String)
+], Link.prototype, "href", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("title"),
+    __metadata("design:type", String)
+], Link.prototype, "title", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("templated"),
+    __metadata("design:type", Boolean)
+], Link.prototype, "templated", void 0);
+Link = Link_1 = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object, String, Boolean])
+], Link);
+exports["default"] = Link;
+//# sourceMappingURL=link.js.map
+
+/***/ }),
+
+/***/ 5228:
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MappingUtilities = void 0;
+const culture_load_option_1 = __webpack_require__(4524);
+// TODO: complete this class
+class MappingUtilities {
+    //#region Dates
+    static toNullableDate(dateTime) {
+        return dateTime !== null && dateTime !== void 0 ? dateTime : null;
+    }
+    //#endregion
+    static culturesToLoadOption(cultures) {
+        if (cultures == null || cultures.length === 0) {
+            return culture_load_option_1.CultureLoadOption.None.deepClone();
+        }
+        return new culture_load_option_1.CultureLoadOption(cultures);
+    }
+}
+exports.MappingUtilities = MappingUtilities;
+//# sourceMappingURL=mapping-utilities.js.map
+
+/***/ }),
+
+/***/ 789:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RelationMemberConditionalValidationResource = exports.PropertyMemberConditionalValidationResource = exports.LogicalMemberConditionalValidationResource = exports.ConditionalValidationResource = exports.ConditionalValidationResourceConverter = void 0;
+//! This file includes multiple resource classes and a converter to prevent circular references.
+const ta_json_1 = __webpack_require__(5459);
+const entity_link_js_1 = __webpack_require__(8217);
+class ConditionalValidationResourceConverter {
+    serialize(value) {
+        return ta_json_1.TaJson.serialize(value);
+    }
+    deserialize(value) {
+        if (value["relation_name"]) {
+            return ta_json_1.TaJson.deserialize(value, RelationMemberConditionalValidationResource);
+        }
+        else if (value["property_name"]) {
+            return ta_json_1.TaJson.deserialize(value, PropertyMemberConditionalValidationResource);
+        }
+        else if (Array.isArray(value.subFilters)) {
+            return new LogicalMemberConditionalValidationResource({
+                operator: value.operator,
+                subFilters: value.subFilters.map(filter => this.deserialize(filter)),
+            });
+        }
+        else {
+            throw Error(`Unable to deserialize to ConditionalValidationResource. Value has unknown format:\n${JSON.stringify(value, undefined, 2)}`);
+        }
+    }
+}
+exports.ConditionalValidationResourceConverter = ConditionalValidationResourceConverter;
+class ConditionalValidationResource {
+}
+exports.ConditionalValidationResource = ConditionalValidationResource;
+let LogicalMemberConditionalValidationResource = class LogicalMemberConditionalValidationResource extends ConditionalValidationResource {
+    constructor(init) {
+        super();
+        Object.assign(this, init);
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("operator"),
+    __metadata("design:type", String)
+], LogicalMemberConditionalValidationResource.prototype, "operator", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("subFilters"),
+    (0, ta_json_1.JsonConverter)(ConditionalValidationResourceConverter),
+    (0, ta_json_1.JsonType)(Array),
+    __metadata("design:type", Array)
+], LogicalMemberConditionalValidationResource.prototype, "subFilters", void 0);
+LogicalMemberConditionalValidationResource = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], LogicalMemberConditionalValidationResource);
+exports.LogicalMemberConditionalValidationResource = LogicalMemberConditionalValidationResource;
+let PropertyMemberConditionalValidationResource = class PropertyMemberConditionalValidationResource extends ConditionalValidationResource {
+    constructor(init) {
+        super();
+        Object.assign(this, init !== null && init !== void 0 ? init : {});
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("operator"),
+    __metadata("design:type", String)
+], PropertyMemberConditionalValidationResource.prototype, "operator", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("property_name"),
+    __metadata("design:type", String)
+], PropertyMemberConditionalValidationResource.prototype, "propertyName", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("culture"),
+    __metadata("design:type", String)
+], PropertyMemberConditionalValidationResource.prototype, "culture", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("subFilters"),
+    (0, ta_json_1.JsonType)(Array),
+    __metadata("design:type", Array)
+], PropertyMemberConditionalValidationResource.prototype, "values", void 0);
+PropertyMemberConditionalValidationResource = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], PropertyMemberConditionalValidationResource);
+exports.PropertyMemberConditionalValidationResource = PropertyMemberConditionalValidationResource;
+let RelationMemberConditionalValidationResource = class RelationMemberConditionalValidationResource extends ConditionalValidationResource {
+    constructor(init) {
+        super();
+        Object.assign(this, init !== null && init !== void 0 ? init : {});
+    }
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("operator"),
+    __metadata("design:type", String)
+], RelationMemberConditionalValidationResource.prototype, "operator", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("relation_name"),
+    __metadata("design:type", String)
+], RelationMemberConditionalValidationResource.prototype, "relationName", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("relation_role"),
+    __metadata("design:type", String)
+], RelationMemberConditionalValidationResource.prototype, "relationRole", void 0);
+__decorate([
+    (0, ta_json_1.JsonProperty)("subFilters"),
+    (0, ta_json_1.JsonElementType)(entity_link_js_1.EntityLink),
+    __metadata("design:type", Array)
+], RelationMemberConditionalValidationResource.prototype, "values", void 0);
+RelationMemberConditionalValidationResource = __decorate([
+    (0, ta_json_1.JsonObject)(),
+    __metadata("design:paramtypes", [Object])
+], RelationMemberConditionalValidationResource);
+exports.RelationMemberConditionalValidationResource = RelationMemberConditionalValidationResource;
+//# sourceMappingURL=conditional-validation-resource.js.map
 
 /***/ }),
 
@@ -7541,6 +11318,74 @@ exports.ValidatorBase = ValidatorBase;
 
 /***/ }),
 
+/***/ 2337:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PermissionsResource = void 0;
+const ta_json_1 = __webpack_require__(5459);
+const resource_1 = __importDefault(__webpack_require__(7641));
+let PermissionsResource = class PermissionsResource extends resource_1.default {
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("permissions"),
+    (0, ta_json_1.JsonElementType)(String),
+    __metadata("design:type", Array)
+], PermissionsResource.prototype, "permissions", void 0);
+PermissionsResource = __decorate([
+    (0, ta_json_1.JsonObject)()
+], PermissionsResource);
+exports.PermissionsResource = PermissionsResource;
+//# sourceMappingURL=permissions-resource.js.map
+
+/***/ }),
+
+/***/ 7641:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const ta_json_1 = __webpack_require__(5459);
+const link_1 = __importDefault(__webpack_require__(5238));
+let Resource = class Resource {
+};
+__decorate([
+    (0, ta_json_1.JsonProperty)("self"),
+    __metadata("design:type", link_1.default)
+], Resource.prototype, "self", void 0);
+Resource = __decorate([
+    (0, ta_json_1.JsonObject)()
+], Resource);
+exports["default"] = Resource;
+//# sourceMappingURL=resource.js.map
+
+/***/ }),
+
 /***/ 3438:
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
@@ -7589,6 +11434,41 @@ class UploadRequest {
 }
 exports.UploadRequest = UploadRequest;
 //# sourceMappingURL=upload-request.js.map
+
+/***/ }),
+
+/***/ 2542:
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TypeGuards = void 0;
+class TypeGuards {
+    /**
+     * A naive type guard to check if we are dealing with a string array.
+     *
+     * @remarks
+     * Only checks if the first element of the array is of type "string".
+     *
+     * @param obj - An array
+     */
+    static isStringArray(obj) {
+        return obj != null && obj.length > 0 && typeof obj[0] === "string";
+    }
+    /**
+     * A naive type guard to check if we are dealing with a number array.
+     *
+     * @remarks
+     * Only checks if the first element of the array is of type "number".
+     *
+     * @param obj - An array
+     */
+    static isNumberArray(obj) {
+        return obj != null && obj.length > 0 && typeof obj[0] === "number";
+    }
+}
+exports.TypeGuards = TypeGuards;
+//# sourceMappingURL=type-guards.js.map
 
 /***/ }),
 
@@ -13124,6 +17004,1287 @@ exports.isValidElementType=function(a){return"string"===typeof a||"function"===t
 if (true) {
   module.exports = __webpack_require__(6103);
 } else {}
+
+
+/***/ }),
+
+/***/ 2016:
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+// ESM COMPAT FLAG
+__webpack_require__.r(__webpack_exports__);
+
+// EXPORTS
+__webpack_require__.d(__webpack_exports__, {
+  "ACCEPTED": () => (/* reexport */ ACCEPTED),
+  "BAD_GATEWAY": () => (/* reexport */ BAD_GATEWAY),
+  "BAD_REQUEST": () => (/* reexport */ BAD_REQUEST),
+  "CONFLICT": () => (/* reexport */ CONFLICT),
+  "CONTINUE": () => (/* reexport */ CONTINUE),
+  "CREATED": () => (/* reexport */ CREATED),
+  "EXPECTATION_FAILED": () => (/* reexport */ EXPECTATION_FAILED),
+  "FAILED_DEPENDENCY": () => (/* reexport */ FAILED_DEPENDENCY),
+  "FORBIDDEN": () => (/* reexport */ FORBIDDEN),
+  "GATEWAY_TIMEOUT": () => (/* reexport */ GATEWAY_TIMEOUT),
+  "GONE": () => (/* reexport */ GONE),
+  "HTTP_VERSION_NOT_SUPPORTED": () => (/* reexport */ HTTP_VERSION_NOT_SUPPORTED),
+  "IM_A_TEAPOT": () => (/* reexport */ IM_A_TEAPOT),
+  "INSUFFICIENT_SPACE_ON_RESOURCE": () => (/* reexport */ INSUFFICIENT_SPACE_ON_RESOURCE),
+  "INSUFFICIENT_STORAGE": () => (/* reexport */ INSUFFICIENT_STORAGE),
+  "INTERNAL_SERVER_ERROR": () => (/* reexport */ INTERNAL_SERVER_ERROR),
+  "LENGTH_REQUIRED": () => (/* reexport */ LENGTH_REQUIRED),
+  "LOCKED": () => (/* reexport */ LOCKED),
+  "METHOD_FAILURE": () => (/* reexport */ METHOD_FAILURE),
+  "METHOD_NOT_ALLOWED": () => (/* reexport */ METHOD_NOT_ALLOWED),
+  "MOVED_PERMANENTLY": () => (/* reexport */ MOVED_PERMANENTLY),
+  "MOVED_TEMPORARILY": () => (/* reexport */ MOVED_TEMPORARILY),
+  "MULTIPLE_CHOICES": () => (/* reexport */ MULTIPLE_CHOICES),
+  "MULTI_STATUS": () => (/* reexport */ MULTI_STATUS),
+  "NETWORK_AUTHENTICATION_REQUIRED": () => (/* reexport */ NETWORK_AUTHENTICATION_REQUIRED),
+  "NON_AUTHORITATIVE_INFORMATION": () => (/* reexport */ NON_AUTHORITATIVE_INFORMATION),
+  "NOT_ACCEPTABLE": () => (/* reexport */ NOT_ACCEPTABLE),
+  "NOT_FOUND": () => (/* reexport */ NOT_FOUND),
+  "NOT_IMPLEMENTED": () => (/* reexport */ NOT_IMPLEMENTED),
+  "NOT_MODIFIED": () => (/* reexport */ NOT_MODIFIED),
+  "NO_CONTENT": () => (/* reexport */ NO_CONTENT),
+  "OK": () => (/* reexport */ OK),
+  "PARTIAL_CONTENT": () => (/* reexport */ PARTIAL_CONTENT),
+  "PAYMENT_REQUIRED": () => (/* reexport */ PAYMENT_REQUIRED),
+  "PERMANENT_REDIRECT": () => (/* reexport */ PERMANENT_REDIRECT),
+  "PRECONDITION_FAILED": () => (/* reexport */ PRECONDITION_FAILED),
+  "PRECONDITION_REQUIRED": () => (/* reexport */ PRECONDITION_REQUIRED),
+  "PROCESSING": () => (/* reexport */ PROCESSING),
+  "PROXY_AUTHENTICATION_REQUIRED": () => (/* reexport */ PROXY_AUTHENTICATION_REQUIRED),
+  "REQUESTED_RANGE_NOT_SATISFIABLE": () => (/* reexport */ REQUESTED_RANGE_NOT_SATISFIABLE),
+  "REQUEST_HEADER_FIELDS_TOO_LARGE": () => (/* reexport */ REQUEST_HEADER_FIELDS_TOO_LARGE),
+  "REQUEST_TIMEOUT": () => (/* reexport */ REQUEST_TIMEOUT),
+  "REQUEST_TOO_LONG": () => (/* reexport */ REQUEST_TOO_LONG),
+  "REQUEST_URI_TOO_LONG": () => (/* reexport */ REQUEST_URI_TOO_LONG),
+  "RESET_CONTENT": () => (/* reexport */ RESET_CONTENT),
+  "ReasonPhrases": () => (/* reexport */ ReasonPhrases),
+  "SEE_OTHER": () => (/* reexport */ SEE_OTHER),
+  "SERVICE_UNAVAILABLE": () => (/* reexport */ SERVICE_UNAVAILABLE),
+  "SWITCHING_PROTOCOLS": () => (/* reexport */ SWITCHING_PROTOCOLS),
+  "StatusCodes": () => (/* reexport */ StatusCodes),
+  "TEMPORARY_REDIRECT": () => (/* reexport */ TEMPORARY_REDIRECT),
+  "TOO_MANY_REQUESTS": () => (/* reexport */ TOO_MANY_REQUESTS),
+  "UNAUTHORIZED": () => (/* reexport */ UNAUTHORIZED),
+  "UNPROCESSABLE_ENTITY": () => (/* reexport */ UNPROCESSABLE_ENTITY),
+  "UNSUPPORTED_MEDIA_TYPE": () => (/* reexport */ UNSUPPORTED_MEDIA_TYPE),
+  "USE_PROXY": () => (/* reexport */ USE_PROXY),
+  "default": () => (/* binding */ es),
+  "getReasonPhrase": () => (/* reexport */ getReasonPhrase),
+  "getStatusCode": () => (/* reexport */ getStatusCode),
+  "getStatusText": () => (/* reexport */ getStatusText)
+});
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/legacy.js
+// Exporting constants directly to maintain compatability with v1
+// These are deprecated. Please don't add any new codes here.
+/**
+ * @deprecated Please use StatusCodes.ACCEPTED
+ *
+ * */
+var ACCEPTED = 202;
+/**
+ * @deprecated Please use StatusCodes.BAD_GATEWAY
+ *
+ * */
+var BAD_GATEWAY = 502;
+/**
+ * @deprecated Please use StatusCodes.BAD_REQUEST
+ *
+ * */
+var BAD_REQUEST = 400;
+/**
+ * @deprecated Please use StatusCodes.CONFLICT
+ *
+ * */
+var CONFLICT = 409;
+/**
+ * @deprecated Please use StatusCodes.CONTINUE
+ *
+ * */
+var CONTINUE = 100;
+/**
+ * @deprecated Please use StatusCodes.CREATED
+ *
+ * */
+var CREATED = 201;
+/**
+ * @deprecated Please use StatusCodes.EXPECTATION_FAILED
+ *
+ * */
+var EXPECTATION_FAILED = 417;
+/**
+ * @deprecated Please use StatusCodes.FAILED_DEPENDENCY
+ *
+ * */
+var FAILED_DEPENDENCY = 424;
+/**
+ * @deprecated Please use StatusCodes.FORBIDDEN
+ *
+ * */
+var FORBIDDEN = 403;
+/**
+ * @deprecated Please use StatusCodes.GATEWAY_TIMEOUT
+ *
+ * */
+var GATEWAY_TIMEOUT = 504;
+/**
+ * @deprecated Please use StatusCodes.GONE
+ *
+ * */
+var GONE = 410;
+/**
+ * @deprecated Please use StatusCodes.HTTP_VERSION_NOT_SUPPORTED
+ *
+ * */
+var HTTP_VERSION_NOT_SUPPORTED = 505;
+/**
+ * @deprecated Please use StatusCodes.IM_A_TEAPOT
+ *
+ * */
+var IM_A_TEAPOT = 418;
+/**
+ * @deprecated Please use StatusCodes.INSUFFICIENT_SPACE_ON_RESOURCE
+ *
+ * */
+var INSUFFICIENT_SPACE_ON_RESOURCE = 419;
+/**
+ * @deprecated Please use StatusCodes.INSUFFICIENT_STORAGE
+ *
+ * */
+var INSUFFICIENT_STORAGE = 507;
+/**
+ * @deprecated Please use StatusCodes.INTERNAL_SERVER_ERROR
+ *
+ * */
+var INTERNAL_SERVER_ERROR = 500;
+/**
+ * @deprecated Please use StatusCodes.LENGTH_REQUIRED
+ *
+ * */
+var LENGTH_REQUIRED = 411;
+/**
+ * @deprecated Please use StatusCodes.LOCKED
+ *
+ * */
+var LOCKED = 423;
+/**
+ * @deprecated Please use StatusCodes.METHOD_FAILURE
+ *
+ * */
+var METHOD_FAILURE = 420;
+/**
+ * @deprecated Please use StatusCodes.METHOD_NOT_ALLOWED
+ *
+ * */
+var METHOD_NOT_ALLOWED = 405;
+/**
+ * @deprecated Please use StatusCodes.MOVED_PERMANENTLY
+ *
+ * */
+var MOVED_PERMANENTLY = 301;
+/**
+ * @deprecated Please use StatusCodes.MOVED_TEMPORARILY
+ *
+ * */
+var MOVED_TEMPORARILY = 302;
+/**
+ * @deprecated Please use StatusCodes.MULTI_STATUS
+ *
+ * */
+var MULTI_STATUS = 207;
+/**
+ * @deprecated Please use StatusCodes.MULTIPLE_CHOICES
+ *
+ * */
+var MULTIPLE_CHOICES = 300;
+/**
+ * @deprecated Please use StatusCodes.NETWORK_AUTHENTICATION_REQUIRED
+ *
+ * */
+var NETWORK_AUTHENTICATION_REQUIRED = 511;
+/**
+ * @deprecated Please use StatusCodes.NO_CONTENT
+ *
+ * */
+var NO_CONTENT = 204;
+/**
+ * @deprecated Please use StatusCodes.NON_AUTHORITATIVE_INFORMATION
+ *
+ * */
+var NON_AUTHORITATIVE_INFORMATION = 203;
+/**
+ * @deprecated Please use StatusCodes.NOT_ACCEPTABLE
+ *
+ * */
+var NOT_ACCEPTABLE = 406;
+/**
+ * @deprecated Please use StatusCodes.NOT_FOUND
+ *
+ * */
+var NOT_FOUND = 404;
+/**
+ * @deprecated Please use StatusCodes.NOT_IMPLEMENTED
+ *
+ * */
+var NOT_IMPLEMENTED = 501;
+/**
+ * @deprecated Please use StatusCodes.NOT_MODIFIED
+ *
+ * */
+var NOT_MODIFIED = 304;
+/**
+ * @deprecated Please use StatusCodes.OK
+ *
+ * */
+var OK = 200;
+/**
+ * @deprecated Please use StatusCodes.PARTIAL_CONTENT
+ *
+ * */
+var PARTIAL_CONTENT = 206;
+/**
+ * @deprecated Please use StatusCodes.PAYMENT_REQUIRED
+ *
+ * */
+var PAYMENT_REQUIRED = 402;
+/**
+ * @deprecated Please use StatusCodes.PERMANENT_REDIRECT
+ *
+ * */
+var PERMANENT_REDIRECT = 308;
+/**
+ * @deprecated Please use StatusCodes.PRECONDITION_FAILED
+ *
+ * */
+var PRECONDITION_FAILED = 412;
+/**
+ * @deprecated Please use StatusCodes.PRECONDITION_REQUIRED
+ *
+ * */
+var PRECONDITION_REQUIRED = 428;
+/**
+ * @deprecated Please use StatusCodes.PROCESSING
+ *
+ * */
+var PROCESSING = 102;
+/**
+ * @deprecated Please use StatusCodes.PROXY_AUTHENTICATION_REQUIRED
+ *
+ * */
+var PROXY_AUTHENTICATION_REQUIRED = 407;
+/**
+ * @deprecated Please use StatusCodes.REQUEST_HEADER_FIELDS_TOO_LARGE
+ *
+ * */
+var REQUEST_HEADER_FIELDS_TOO_LARGE = 431;
+/**
+ * @deprecated Please use StatusCodes.REQUEST_TIMEOUT
+ *
+ * */
+var REQUEST_TIMEOUT = 408;
+/**
+ * @deprecated Please use StatusCodes.REQUEST_TOO_LONG
+ *
+ * */
+var REQUEST_TOO_LONG = 413;
+/**
+ * @deprecated Please use StatusCodes.REQUEST_URI_TOO_LONG
+ *
+ * */
+var REQUEST_URI_TOO_LONG = 414;
+/**
+ * @deprecated Please use StatusCodes.REQUESTED_RANGE_NOT_SATISFIABLE
+ *
+ * */
+var REQUESTED_RANGE_NOT_SATISFIABLE = 416;
+/**
+ * @deprecated Please use StatusCodes.RESET_CONTENT
+ *
+ * */
+var RESET_CONTENT = 205;
+/**
+ * @deprecated Please use StatusCodes.SEE_OTHER
+ *
+ * */
+var SEE_OTHER = 303;
+/**
+ * @deprecated Please use StatusCodes.SERVICE_UNAVAILABLE
+ *
+ * */
+var SERVICE_UNAVAILABLE = 503;
+/**
+ * @deprecated Please use StatusCodes.SWITCHING_PROTOCOLS
+ *
+ * */
+var SWITCHING_PROTOCOLS = 101;
+/**
+ * @deprecated Please use StatusCodes.TEMPORARY_REDIRECT
+ *
+ * */
+var TEMPORARY_REDIRECT = 307;
+/**
+ * @deprecated Please use StatusCodes.TOO_MANY_REQUESTS
+ *
+ * */
+var TOO_MANY_REQUESTS = 429;
+/**
+ * @deprecated Please use StatusCodes.UNAUTHORIZED
+ *
+ * */
+var UNAUTHORIZED = 401;
+/**
+ * @deprecated Please use StatusCodes.UNPROCESSABLE_ENTITY
+ *
+ * */
+var UNPROCESSABLE_ENTITY = 422;
+/**
+ * @deprecated Please use StatusCodes.UNSUPPORTED_MEDIA_TYPE
+ *
+ * */
+var UNSUPPORTED_MEDIA_TYPE = 415;
+/**
+ * @deprecated Please use StatusCodes.USE_PROXY
+ *
+ * */
+var USE_PROXY = 305;
+/* harmony default export */ const legacy = ({
+    ACCEPTED: ACCEPTED,
+    BAD_GATEWAY: BAD_GATEWAY,
+    BAD_REQUEST: BAD_REQUEST,
+    CONFLICT: CONFLICT,
+    CONTINUE: CONTINUE,
+    CREATED: CREATED,
+    EXPECTATION_FAILED: EXPECTATION_FAILED,
+    FORBIDDEN: FORBIDDEN,
+    GATEWAY_TIMEOUT: GATEWAY_TIMEOUT,
+    GONE: GONE,
+    HTTP_VERSION_NOT_SUPPORTED: HTTP_VERSION_NOT_SUPPORTED,
+    IM_A_TEAPOT: IM_A_TEAPOT,
+    INSUFFICIENT_SPACE_ON_RESOURCE: INSUFFICIENT_SPACE_ON_RESOURCE,
+    INSUFFICIENT_STORAGE: INSUFFICIENT_STORAGE,
+    INTERNAL_SERVER_ERROR: INTERNAL_SERVER_ERROR,
+    LENGTH_REQUIRED: LENGTH_REQUIRED,
+    LOCKED: LOCKED,
+    METHOD_FAILURE: METHOD_FAILURE,
+    METHOD_NOT_ALLOWED: METHOD_NOT_ALLOWED,
+    MOVED_PERMANENTLY: MOVED_PERMANENTLY,
+    MOVED_TEMPORARILY: MOVED_TEMPORARILY,
+    MULTI_STATUS: MULTI_STATUS,
+    MULTIPLE_CHOICES: MULTIPLE_CHOICES,
+    NETWORK_AUTHENTICATION_REQUIRED: NETWORK_AUTHENTICATION_REQUIRED,
+    NO_CONTENT: NO_CONTENT,
+    NON_AUTHORITATIVE_INFORMATION: NON_AUTHORITATIVE_INFORMATION,
+    NOT_ACCEPTABLE: NOT_ACCEPTABLE,
+    NOT_FOUND: NOT_FOUND,
+    NOT_IMPLEMENTED: NOT_IMPLEMENTED,
+    NOT_MODIFIED: NOT_MODIFIED,
+    OK: OK,
+    PARTIAL_CONTENT: PARTIAL_CONTENT,
+    PAYMENT_REQUIRED: PAYMENT_REQUIRED,
+    PERMANENT_REDIRECT: PERMANENT_REDIRECT,
+    PRECONDITION_FAILED: PRECONDITION_FAILED,
+    PRECONDITION_REQUIRED: PRECONDITION_REQUIRED,
+    PROCESSING: PROCESSING,
+    PROXY_AUTHENTICATION_REQUIRED: PROXY_AUTHENTICATION_REQUIRED,
+    REQUEST_HEADER_FIELDS_TOO_LARGE: REQUEST_HEADER_FIELDS_TOO_LARGE,
+    REQUEST_TIMEOUT: REQUEST_TIMEOUT,
+    REQUEST_TOO_LONG: REQUEST_TOO_LONG,
+    REQUEST_URI_TOO_LONG: REQUEST_URI_TOO_LONG,
+    REQUESTED_RANGE_NOT_SATISFIABLE: REQUESTED_RANGE_NOT_SATISFIABLE,
+    RESET_CONTENT: RESET_CONTENT,
+    SEE_OTHER: SEE_OTHER,
+    SERVICE_UNAVAILABLE: SERVICE_UNAVAILABLE,
+    SWITCHING_PROTOCOLS: SWITCHING_PROTOCOLS,
+    TEMPORARY_REDIRECT: TEMPORARY_REDIRECT,
+    TOO_MANY_REQUESTS: TOO_MANY_REQUESTS,
+    UNAUTHORIZED: UNAUTHORIZED,
+    UNPROCESSABLE_ENTITY: UNPROCESSABLE_ENTITY,
+    UNSUPPORTED_MEDIA_TYPE: UNSUPPORTED_MEDIA_TYPE,
+    USE_PROXY: USE_PROXY,
+});
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/utils.js
+// Generated file. Do not edit
+var statusCodeToReasonPhrase = {
+    "202": "Accepted",
+    "502": "Bad Gateway",
+    "400": "Bad Request",
+    "409": "Conflict",
+    "100": "Continue",
+    "201": "Created",
+    "417": "Expectation Failed",
+    "424": "Failed Dependency",
+    "403": "Forbidden",
+    "504": "Gateway Timeout",
+    "410": "Gone",
+    "505": "HTTP Version Not Supported",
+    "418": "I'm a teapot",
+    "419": "Insufficient Space on Resource",
+    "507": "Insufficient Storage",
+    "500": "Internal Server Error",
+    "411": "Length Required",
+    "423": "Locked",
+    "420": "Method Failure",
+    "405": "Method Not Allowed",
+    "301": "Moved Permanently",
+    "302": "Moved Temporarily",
+    "207": "Multi-Status",
+    "300": "Multiple Choices",
+    "511": "Network Authentication Required",
+    "204": "No Content",
+    "203": "Non Authoritative Information",
+    "406": "Not Acceptable",
+    "404": "Not Found",
+    "501": "Not Implemented",
+    "304": "Not Modified",
+    "200": "OK",
+    "206": "Partial Content",
+    "402": "Payment Required",
+    "308": "Permanent Redirect",
+    "412": "Precondition Failed",
+    "428": "Precondition Required",
+    "102": "Processing",
+    "407": "Proxy Authentication Required",
+    "431": "Request Header Fields Too Large",
+    "408": "Request Timeout",
+    "413": "Request Entity Too Large",
+    "414": "Request-URI Too Long",
+    "416": "Requested Range Not Satisfiable",
+    "205": "Reset Content",
+    "303": "See Other",
+    "503": "Service Unavailable",
+    "101": "Switching Protocols",
+    "307": "Temporary Redirect",
+    "429": "Too Many Requests",
+    "401": "Unauthorized",
+    "451": "Unavailable For Legal Reasons",
+    "422": "Unprocessable Entity",
+    "415": "Unsupported Media Type",
+    "305": "Use Proxy",
+    "421": "Misdirected Request"
+};
+var reasonPhraseToStatusCode = {
+    "Accepted": 202,
+    "Bad Gateway": 502,
+    "Bad Request": 400,
+    "Conflict": 409,
+    "Continue": 100,
+    "Created": 201,
+    "Expectation Failed": 417,
+    "Failed Dependency": 424,
+    "Forbidden": 403,
+    "Gateway Timeout": 504,
+    "Gone": 410,
+    "HTTP Version Not Supported": 505,
+    "I'm a teapot": 418,
+    "Insufficient Space on Resource": 419,
+    "Insufficient Storage": 507,
+    "Internal Server Error": 500,
+    "Length Required": 411,
+    "Locked": 423,
+    "Method Failure": 420,
+    "Method Not Allowed": 405,
+    "Moved Permanently": 301,
+    "Moved Temporarily": 302,
+    "Multi-Status": 207,
+    "Multiple Choices": 300,
+    "Network Authentication Required": 511,
+    "No Content": 204,
+    "Non Authoritative Information": 203,
+    "Not Acceptable": 406,
+    "Not Found": 404,
+    "Not Implemented": 501,
+    "Not Modified": 304,
+    "OK": 200,
+    "Partial Content": 206,
+    "Payment Required": 402,
+    "Permanent Redirect": 308,
+    "Precondition Failed": 412,
+    "Precondition Required": 428,
+    "Processing": 102,
+    "Proxy Authentication Required": 407,
+    "Request Header Fields Too Large": 431,
+    "Request Timeout": 408,
+    "Request Entity Too Large": 413,
+    "Request-URI Too Long": 414,
+    "Requested Range Not Satisfiable": 416,
+    "Reset Content": 205,
+    "See Other": 303,
+    "Service Unavailable": 503,
+    "Switching Protocols": 101,
+    "Temporary Redirect": 307,
+    "Too Many Requests": 429,
+    "Unauthorized": 401,
+    "Unavailable For Legal Reasons": 451,
+    "Unprocessable Entity": 422,
+    "Unsupported Media Type": 415,
+    "Use Proxy": 305,
+    "Misdirected Request": 421
+};
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/utils-functions.js
+
+/**
+ * Returns the reason phrase for the given status code.
+ * If the given status code does not exist, an error is thrown.
+ *
+ * @param {number|string} statusCode The HTTP status code
+ * @returns {string} The associated reason phrase (e.g. "Bad Request", "OK")
+ * */
+function getReasonPhrase(statusCode) {
+    var result = statusCodeToReasonPhrase[statusCode.toString()];
+    if (!result) {
+        throw new Error("Status code does not exist: " + statusCode);
+    }
+    return result;
+}
+/**
+ * Returns the status code for the given reason phrase.
+ * If the given reason phrase does not exist, undefined is returned.
+ *
+ * @param {string} reasonPhrase The HTTP reason phrase (e.g. "Bad Request", "OK")
+ * @returns {string} The associated status code
+ * */
+function getStatusCode(reasonPhrase) {
+    var result = reasonPhraseToStatusCode[reasonPhrase];
+    if (!result) {
+        throw new Error("Reason phrase does not exist: " + reasonPhrase);
+    }
+    return result;
+}
+/**
+ * @deprecated
+ *
+ * Returns the reason phrase for the given status code.
+ * If the given status code does not exist, undefined is returned.
+ *
+ * Deprecated in favor of getReasonPhrase
+ *
+ * @param {number|string} statusCode The HTTP status code
+ * @returns {string|undefined} The associated reason phrase (e.g. "Bad Request", "OK")
+ * */
+var getStatusText = getReasonPhrase;
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/status-codes.js
+// Generated file. Do not edit
+var StatusCodes;
+(function (StatusCodes) {
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.3
+     *
+     * The request has been received but not yet acted upon. It is non-committal, meaning that there is no way in HTTP to later send an asynchronous response indicating the outcome of processing the request. It is intended for cases where another process or server handles the request, or for batch processing.
+     */
+    StatusCodes[StatusCodes["ACCEPTED"] = 202] = "ACCEPTED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.3
+     *
+     * This error response means that the server, while working as a gateway to get a response needed to handle the request, got an invalid response.
+     */
+    StatusCodes[StatusCodes["BAD_GATEWAY"] = 502] = "BAD_GATEWAY";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.1
+     *
+     * This response means that server could not understand the request due to invalid syntax.
+     */
+    StatusCodes[StatusCodes["BAD_REQUEST"] = 400] = "BAD_REQUEST";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.8
+     *
+     * This response is sent when a request conflicts with the current state of the server.
+     */
+    StatusCodes[StatusCodes["CONFLICT"] = 409] = "CONFLICT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.2.1
+     *
+     * This interim response indicates that everything so far is OK and that the client should continue with the request or ignore it if it is already finished.
+     */
+    StatusCodes[StatusCodes["CONTINUE"] = 100] = "CONTINUE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.2
+     *
+     * The request has succeeded and a new resource has been created as a result of it. This is typically the response sent after a PUT request.
+     */
+    StatusCodes[StatusCodes["CREATED"] = 201] = "CREATED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.14
+     *
+     * This response code means the expectation indicated by the Expect request header field can't be met by the server.
+     */
+    StatusCodes[StatusCodes["EXPECTATION_FAILED"] = 417] = "EXPECTATION_FAILED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.5
+     *
+     * The request failed due to failure of a previous request.
+     */
+    StatusCodes[StatusCodes["FAILED_DEPENDENCY"] = 424] = "FAILED_DEPENDENCY";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.3
+     *
+     * The client does not have access rights to the content, i.e. they are unauthorized, so server is rejecting to give proper response. Unlike 401, the client's identity is known to the server.
+     */
+    StatusCodes[StatusCodes["FORBIDDEN"] = 403] = "FORBIDDEN";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.5
+     *
+     * This error response is given when the server is acting as a gateway and cannot get a response in time.
+     */
+    StatusCodes[StatusCodes["GATEWAY_TIMEOUT"] = 504] = "GATEWAY_TIMEOUT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.9
+     *
+     * This response would be sent when the requested content has been permenantly deleted from server, with no forwarding address. Clients are expected to remove their caches and links to the resource. The HTTP specification intends this status code to be used for "limited-time, promotional services". APIs should not feel compelled to indicate resources that have been deleted with this status code.
+     */
+    StatusCodes[StatusCodes["GONE"] = 410] = "GONE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.6
+     *
+     * The HTTP version used in the request is not supported by the server.
+     */
+    StatusCodes[StatusCodes["HTTP_VERSION_NOT_SUPPORTED"] = 505] = "HTTP_VERSION_NOT_SUPPORTED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2324#section-2.3.2
+     *
+     * Any attempt to brew coffee with a teapot should result in the error code "418 I'm a teapot". The resulting entity body MAY be short and stout.
+     */
+    StatusCodes[StatusCodes["IM_A_TEAPOT"] = 418] = "IM_A_TEAPOT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.6
+     *
+     * The 507 (Insufficient Storage) status code means the method could not be performed on the resource because the server is unable to store the representation needed to successfully complete the request. This condition is considered to be temporary. If the request which received this status code was the result of a user action, the request MUST NOT be repeated until it is requested by a separate user action.
+     */
+    StatusCodes[StatusCodes["INSUFFICIENT_SPACE_ON_RESOURCE"] = 419] = "INSUFFICIENT_SPACE_ON_RESOURCE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.6
+     *
+     * The server has an internal configuration error: the chosen variant resource is configured to engage in transparent content negotiation itself, and is therefore not a proper end point in the negotiation process.
+     */
+    StatusCodes[StatusCodes["INSUFFICIENT_STORAGE"] = 507] = "INSUFFICIENT_STORAGE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.1
+     *
+     * The server encountered an unexpected condition that prevented it from fulfilling the request.
+     */
+    StatusCodes[StatusCodes["INTERNAL_SERVER_ERROR"] = 500] = "INTERNAL_SERVER_ERROR";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.10
+     *
+     * The server rejected the request because the Content-Length header field is not defined and the server requires it.
+     */
+    StatusCodes[StatusCodes["LENGTH_REQUIRED"] = 411] = "LENGTH_REQUIRED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.4
+     *
+     * The resource that is being accessed is locked.
+     */
+    StatusCodes[StatusCodes["LOCKED"] = 423] = "LOCKED";
+    /**
+     * @deprecated
+     * Official Documentation @ https://tools.ietf.org/rfcdiff?difftype=--hwdiff&url2=draft-ietf-webdav-protocol-06.txt
+     *
+     * A deprecated response used by the Spring Framework when a method has failed.
+     */
+    StatusCodes[StatusCodes["METHOD_FAILURE"] = 420] = "METHOD_FAILURE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.5
+     *
+     * The request method is known by the server but has been disabled and cannot be used. For example, an API may forbid DELETE-ing a resource. The two mandatory methods, GET and HEAD, must never be disabled and should not return this error code.
+     */
+    StatusCodes[StatusCodes["METHOD_NOT_ALLOWED"] = 405] = "METHOD_NOT_ALLOWED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.2
+     *
+     * This response code means that URI of requested resource has been changed. Probably, new URI would be given in the response.
+     */
+    StatusCodes[StatusCodes["MOVED_PERMANENTLY"] = 301] = "MOVED_PERMANENTLY";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.3
+     *
+     * This response code means that URI of requested resource has been changed temporarily. New changes in the URI might be made in the future. Therefore, this same URI should be used by the client in future requests.
+     */
+    StatusCodes[StatusCodes["MOVED_TEMPORARILY"] = 302] = "MOVED_TEMPORARILY";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.2
+     *
+     * A Multi-Status response conveys information about multiple resources in situations where multiple status codes might be appropriate.
+     */
+    StatusCodes[StatusCodes["MULTI_STATUS"] = 207] = "MULTI_STATUS";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.1
+     *
+     * The request has more than one possible responses. User-agent or user should choose one of them. There is no standardized way to choose one of the responses.
+     */
+    StatusCodes[StatusCodes["MULTIPLE_CHOICES"] = 300] = "MULTIPLE_CHOICES";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-6
+     *
+     * The 511 status code indicates that the client needs to authenticate to gain network access.
+     */
+    StatusCodes[StatusCodes["NETWORK_AUTHENTICATION_REQUIRED"] = 511] = "NETWORK_AUTHENTICATION_REQUIRED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.5
+     *
+     * There is no content to send for this request, but the headers may be useful. The user-agent may update its cached headers for this resource with the new ones.
+     */
+    StatusCodes[StatusCodes["NO_CONTENT"] = 204] = "NO_CONTENT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.4
+     *
+     * This response code means returned meta-information set is not exact set as available from the origin server, but collected from a local or a third party copy. Except this condition, 200 OK response should be preferred instead of this response.
+     */
+    StatusCodes[StatusCodes["NON_AUTHORITATIVE_INFORMATION"] = 203] = "NON_AUTHORITATIVE_INFORMATION";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.6
+     *
+     * This response is sent when the web server, after performing server-driven content negotiation, doesn't find any content following the criteria given by the user agent.
+     */
+    StatusCodes[StatusCodes["NOT_ACCEPTABLE"] = 406] = "NOT_ACCEPTABLE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.4
+     *
+     * The server can not find requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 to hide the existence of a resource from an unauthorized client. This response code is probably the most famous one due to its frequent occurence on the web.
+     */
+    StatusCodes[StatusCodes["NOT_FOUND"] = 404] = "NOT_FOUND";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.2
+     *
+     * The request method is not supported by the server and cannot be handled. The only methods that servers are required to support (and therefore that must not return this code) are GET and HEAD.
+     */
+    StatusCodes[StatusCodes["NOT_IMPLEMENTED"] = 501] = "NOT_IMPLEMENTED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7232#section-4.1
+     *
+     * This is used for caching purposes. It is telling to client that response has not been modified. So, client can continue to use same cached version of response.
+     */
+    StatusCodes[StatusCodes["NOT_MODIFIED"] = 304] = "NOT_MODIFIED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.1
+     *
+     * The request has succeeded. The meaning of a success varies depending on the HTTP method:
+     * GET: The resource has been fetched and is transmitted in the message body.
+     * HEAD: The entity headers are in the message body.
+     * POST: The resource describing the result of the action is transmitted in the message body.
+     * TRACE: The message body contains the request message as received by the server
+     */
+    StatusCodes[StatusCodes["OK"] = 200] = "OK";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7233#section-4.1
+     *
+     * This response code is used because of range header sent by the client to separate download into multiple streams.
+     */
+    StatusCodes[StatusCodes["PARTIAL_CONTENT"] = 206] = "PARTIAL_CONTENT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.2
+     *
+     * This response code is reserved for future use. Initial aim for creating this code was using it for digital payment systems however this is not used currently.
+     */
+    StatusCodes[StatusCodes["PAYMENT_REQUIRED"] = 402] = "PAYMENT_REQUIRED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7538#section-3
+     *
+     * This means that the resource is now permanently located at another URI, specified by the Location: HTTP Response header. This has the same semantics as the 301 Moved Permanently HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.
+     */
+    StatusCodes[StatusCodes["PERMANENT_REDIRECT"] = 308] = "PERMANENT_REDIRECT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7232#section-4.2
+     *
+     * The client has indicated preconditions in its headers which the server does not meet.
+     */
+    StatusCodes[StatusCodes["PRECONDITION_FAILED"] = 412] = "PRECONDITION_FAILED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-3
+     *
+     * The origin server requires the request to be conditional. Intended to prevent the 'lost update' problem, where a client GETs a resource's state, modifies it, and PUTs it back to the server, when meanwhile a third party has modified the state on the server, leading to a conflict.
+     */
+    StatusCodes[StatusCodes["PRECONDITION_REQUIRED"] = 428] = "PRECONDITION_REQUIRED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.1
+     *
+     * This code indicates that the server has received and is processing the request, but no response is available yet.
+     */
+    StatusCodes[StatusCodes["PROCESSING"] = 102] = "PROCESSING";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7235#section-3.2
+     *
+     * This is similar to 401 but authentication is needed to be done by a proxy.
+     */
+    StatusCodes[StatusCodes["PROXY_AUTHENTICATION_REQUIRED"] = 407] = "PROXY_AUTHENTICATION_REQUIRED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-5
+     *
+     * The server is unwilling to process the request because its header fields are too large. The request MAY be resubmitted after reducing the size of the request header fields.
+     */
+    StatusCodes[StatusCodes["REQUEST_HEADER_FIELDS_TOO_LARGE"] = 431] = "REQUEST_HEADER_FIELDS_TOO_LARGE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.7
+     *
+     * This response is sent on an idle connection by some servers, even without any previous request by the client. It means that the server would like to shut down this unused connection. This response is used much more since some browsers, like Chrome, Firefox 27+, or IE9, use HTTP pre-connection mechanisms to speed up surfing. Also note that some servers merely shut down the connection without sending this message.
+     */
+    StatusCodes[StatusCodes["REQUEST_TIMEOUT"] = 408] = "REQUEST_TIMEOUT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.11
+     *
+     * Request entity is larger than limits defined by server; the server might close the connection or return an Retry-After header field.
+     */
+    StatusCodes[StatusCodes["REQUEST_TOO_LONG"] = 413] = "REQUEST_TOO_LONG";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.12
+     *
+     * The URI requested by the client is longer than the server is willing to interpret.
+     */
+    StatusCodes[StatusCodes["REQUEST_URI_TOO_LONG"] = 414] = "REQUEST_URI_TOO_LONG";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7233#section-4.4
+     *
+     * The range specified by the Range header field in the request can't be fulfilled; it's possible that the range is outside the size of the target URI's data.
+     */
+    StatusCodes[StatusCodes["REQUESTED_RANGE_NOT_SATISFIABLE"] = 416] = "REQUESTED_RANGE_NOT_SATISFIABLE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.6
+     *
+     * This response code is sent after accomplishing request to tell user agent reset document view which sent this request.
+     */
+    StatusCodes[StatusCodes["RESET_CONTENT"] = 205] = "RESET_CONTENT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.4
+     *
+     * Server sent this response to directing client to get requested resource to another URI with an GET request.
+     */
+    StatusCodes[StatusCodes["SEE_OTHER"] = 303] = "SEE_OTHER";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.4
+     *
+     * The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded. Note that together with this response, a user-friendly page explaining the problem should be sent. This responses should be used for temporary conditions and the Retry-After: HTTP header should, if possible, contain the estimated time before the recovery of the service. The webmaster must also take care about the caching-related headers that are sent along with this response, as these temporary condition responses should usually not be cached.
+     */
+    StatusCodes[StatusCodes["SERVICE_UNAVAILABLE"] = 503] = "SERVICE_UNAVAILABLE";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.2.2
+     *
+     * This code is sent in response to an Upgrade request header by the client, and indicates the protocol the server is switching too.
+     */
+    StatusCodes[StatusCodes["SWITCHING_PROTOCOLS"] = 101] = "SWITCHING_PROTOCOLS";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.7
+     *
+     * Server sent this response to directing client to get requested resource to another URI with same method that used prior request. This has the same semantic than the 302 Found HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.
+     */
+    StatusCodes[StatusCodes["TEMPORARY_REDIRECT"] = 307] = "TEMPORARY_REDIRECT";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-4
+     *
+     * The user has sent too many requests in a given amount of time ("rate limiting").
+     */
+    StatusCodes[StatusCodes["TOO_MANY_REQUESTS"] = 429] = "TOO_MANY_REQUESTS";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7235#section-3.1
+     *
+     * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
+     */
+    StatusCodes[StatusCodes["UNAUTHORIZED"] = 401] = "UNAUTHORIZED";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7725
+     *
+     * The user-agent requested a resource that cannot legally be provided, such as a web page censored by a government.
+     */
+    StatusCodes[StatusCodes["UNAVAILABLE_FOR_LEGAL_REASONS"] = 451] = "UNAVAILABLE_FOR_LEGAL_REASONS";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.3
+     *
+     * The request was well-formed but was unable to be followed due to semantic errors.
+     */
+    StatusCodes[StatusCodes["UNPROCESSABLE_ENTITY"] = 422] = "UNPROCESSABLE_ENTITY";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.13
+     *
+     * The media format of the requested data is not supported by the server, so the server is rejecting the request.
+     */
+    StatusCodes[StatusCodes["UNSUPPORTED_MEDIA_TYPE"] = 415] = "UNSUPPORTED_MEDIA_TYPE";
+    /**
+     * @deprecated
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.6
+     *
+     * Was defined in a previous version of the HTTP specification to indicate that a requested response must be accessed by a proxy. It has been deprecated due to security concerns regarding in-band configuration of a proxy.
+     */
+    StatusCodes[StatusCodes["USE_PROXY"] = 305] = "USE_PROXY";
+    /**
+     * Official Documentation @ https://datatracker.ietf.org/doc/html/rfc7540#section-9.1.2
+     *
+     * Defined in the specification of HTTP/2 to indicate that a server is not able to produce a response for the combination of scheme and authority that are included in the request URI.
+     */
+    StatusCodes[StatusCodes["MISDIRECTED_REQUEST"] = 421] = "MISDIRECTED_REQUEST";
+})(StatusCodes || (StatusCodes = {}));
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/reason-phrases.js
+// Generated file. Do not edit
+var ReasonPhrases;
+(function (ReasonPhrases) {
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.3
+     *
+     * The request has been received but not yet acted upon. It is non-committal, meaning that there is no way in HTTP to later send an asynchronous response indicating the outcome of processing the request. It is intended for cases where another process or server handles the request, or for batch processing.
+     */
+    ReasonPhrases["ACCEPTED"] = "Accepted";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.3
+     *
+     * This error response means that the server, while working as a gateway to get a response needed to handle the request, got an invalid response.
+     */
+    ReasonPhrases["BAD_GATEWAY"] = "Bad Gateway";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.1
+     *
+     * This response means that server could not understand the request due to invalid syntax.
+     */
+    ReasonPhrases["BAD_REQUEST"] = "Bad Request";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.8
+     *
+     * This response is sent when a request conflicts with the current state of the server.
+     */
+    ReasonPhrases["CONFLICT"] = "Conflict";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.2.1
+     *
+     * This interim response indicates that everything so far is OK and that the client should continue with the request or ignore it if it is already finished.
+     */
+    ReasonPhrases["CONTINUE"] = "Continue";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.2
+     *
+     * The request has succeeded and a new resource has been created as a result of it. This is typically the response sent after a PUT request.
+     */
+    ReasonPhrases["CREATED"] = "Created";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.14
+     *
+     * This response code means the expectation indicated by the Expect request header field can't be met by the server.
+     */
+    ReasonPhrases["EXPECTATION_FAILED"] = "Expectation Failed";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.5
+     *
+     * The request failed due to failure of a previous request.
+     */
+    ReasonPhrases["FAILED_DEPENDENCY"] = "Failed Dependency";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.3
+     *
+     * The client does not have access rights to the content, i.e. they are unauthorized, so server is rejecting to give proper response. Unlike 401, the client's identity is known to the server.
+     */
+    ReasonPhrases["FORBIDDEN"] = "Forbidden";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.5
+     *
+     * This error response is given when the server is acting as a gateway and cannot get a response in time.
+     */
+    ReasonPhrases["GATEWAY_TIMEOUT"] = "Gateway Timeout";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.9
+     *
+     * This response would be sent when the requested content has been permenantly deleted from server, with no forwarding address. Clients are expected to remove their caches and links to the resource. The HTTP specification intends this status code to be used for "limited-time, promotional services". APIs should not feel compelled to indicate resources that have been deleted with this status code.
+     */
+    ReasonPhrases["GONE"] = "Gone";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.6
+     *
+     * The HTTP version used in the request is not supported by the server.
+     */
+    ReasonPhrases["HTTP_VERSION_NOT_SUPPORTED"] = "HTTP Version Not Supported";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2324#section-2.3.2
+     *
+     * Any attempt to brew coffee with a teapot should result in the error code "418 I'm a teapot". The resulting entity body MAY be short and stout.
+     */
+    ReasonPhrases["IM_A_TEAPOT"] = "I'm a teapot";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.6
+     *
+     * The 507 (Insufficient Storage) status code means the method could not be performed on the resource because the server is unable to store the representation needed to successfully complete the request. This condition is considered to be temporary. If the request which received this status code was the result of a user action, the request MUST NOT be repeated until it is requested by a separate user action.
+     */
+    ReasonPhrases["INSUFFICIENT_SPACE_ON_RESOURCE"] = "Insufficient Space on Resource";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.6
+     *
+     * The server has an internal configuration error: the chosen variant resource is configured to engage in transparent content negotiation itself, and is therefore not a proper end point in the negotiation process.
+     */
+    ReasonPhrases["INSUFFICIENT_STORAGE"] = "Insufficient Storage";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.1
+     *
+     * The server encountered an unexpected condition that prevented it from fulfilling the request.
+     */
+    ReasonPhrases["INTERNAL_SERVER_ERROR"] = "Internal Server Error";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.10
+     *
+     * The server rejected the request because the Content-Length header field is not defined and the server requires it.
+     */
+    ReasonPhrases["LENGTH_REQUIRED"] = "Length Required";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.4
+     *
+     * The resource that is being accessed is locked.
+     */
+    ReasonPhrases["LOCKED"] = "Locked";
+    /**
+     * @deprecated
+     * Official Documentation @ https://tools.ietf.org/rfcdiff?difftype=--hwdiff&url2=draft-ietf-webdav-protocol-06.txt
+     *
+     * A deprecated response used by the Spring Framework when a method has failed.
+     */
+    ReasonPhrases["METHOD_FAILURE"] = "Method Failure";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.5
+     *
+     * The request method is known by the server but has been disabled and cannot be used. For example, an API may forbid DELETE-ing a resource. The two mandatory methods, GET and HEAD, must never be disabled and should not return this error code.
+     */
+    ReasonPhrases["METHOD_NOT_ALLOWED"] = "Method Not Allowed";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.2
+     *
+     * This response code means that URI of requested resource has been changed. Probably, new URI would be given in the response.
+     */
+    ReasonPhrases["MOVED_PERMANENTLY"] = "Moved Permanently";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.3
+     *
+     * This response code means that URI of requested resource has been changed temporarily. New changes in the URI might be made in the future. Therefore, this same URI should be used by the client in future requests.
+     */
+    ReasonPhrases["MOVED_TEMPORARILY"] = "Moved Temporarily";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.2
+     *
+     * A Multi-Status response conveys information about multiple resources in situations where multiple status codes might be appropriate.
+     */
+    ReasonPhrases["MULTI_STATUS"] = "Multi-Status";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.1
+     *
+     * The request has more than one possible responses. User-agent or user should choose one of them. There is no standardized way to choose one of the responses.
+     */
+    ReasonPhrases["MULTIPLE_CHOICES"] = "Multiple Choices";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-6
+     *
+     * The 511 status code indicates that the client needs to authenticate to gain network access.
+     */
+    ReasonPhrases["NETWORK_AUTHENTICATION_REQUIRED"] = "Network Authentication Required";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.5
+     *
+     * There is no content to send for this request, but the headers may be useful. The user-agent may update its cached headers for this resource with the new ones.
+     */
+    ReasonPhrases["NO_CONTENT"] = "No Content";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.4
+     *
+     * This response code means returned meta-information set is not exact set as available from the origin server, but collected from a local or a third party copy. Except this condition, 200 OK response should be preferred instead of this response.
+     */
+    ReasonPhrases["NON_AUTHORITATIVE_INFORMATION"] = "Non Authoritative Information";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.6
+     *
+     * This response is sent when the web server, after performing server-driven content negotiation, doesn't find any content following the criteria given by the user agent.
+     */
+    ReasonPhrases["NOT_ACCEPTABLE"] = "Not Acceptable";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.4
+     *
+     * The server can not find requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 to hide the existence of a resource from an unauthorized client. This response code is probably the most famous one due to its frequent occurence on the web.
+     */
+    ReasonPhrases["NOT_FOUND"] = "Not Found";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.2
+     *
+     * The request method is not supported by the server and cannot be handled. The only methods that servers are required to support (and therefore that must not return this code) are GET and HEAD.
+     */
+    ReasonPhrases["NOT_IMPLEMENTED"] = "Not Implemented";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7232#section-4.1
+     *
+     * This is used for caching purposes. It is telling to client that response has not been modified. So, client can continue to use same cached version of response.
+     */
+    ReasonPhrases["NOT_MODIFIED"] = "Not Modified";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.1
+     *
+     * The request has succeeded. The meaning of a success varies depending on the HTTP method:
+     * GET: The resource has been fetched and is transmitted in the message body.
+     * HEAD: The entity headers are in the message body.
+     * POST: The resource describing the result of the action is transmitted in the message body.
+     * TRACE: The message body contains the request message as received by the server
+     */
+    ReasonPhrases["OK"] = "OK";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7233#section-4.1
+     *
+     * This response code is used because of range header sent by the client to separate download into multiple streams.
+     */
+    ReasonPhrases["PARTIAL_CONTENT"] = "Partial Content";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.2
+     *
+     * This response code is reserved for future use. Initial aim for creating this code was using it for digital payment systems however this is not used currently.
+     */
+    ReasonPhrases["PAYMENT_REQUIRED"] = "Payment Required";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7538#section-3
+     *
+     * This means that the resource is now permanently located at another URI, specified by the Location: HTTP Response header. This has the same semantics as the 301 Moved Permanently HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.
+     */
+    ReasonPhrases["PERMANENT_REDIRECT"] = "Permanent Redirect";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7232#section-4.2
+     *
+     * The client has indicated preconditions in its headers which the server does not meet.
+     */
+    ReasonPhrases["PRECONDITION_FAILED"] = "Precondition Failed";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-3
+     *
+     * The origin server requires the request to be conditional. Intended to prevent the 'lost update' problem, where a client GETs a resource's state, modifies it, and PUTs it back to the server, when meanwhile a third party has modified the state on the server, leading to a conflict.
+     */
+    ReasonPhrases["PRECONDITION_REQUIRED"] = "Precondition Required";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.1
+     *
+     * This code indicates that the server has received and is processing the request, but no response is available yet.
+     */
+    ReasonPhrases["PROCESSING"] = "Processing";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7235#section-3.2
+     *
+     * This is similar to 401 but authentication is needed to be done by a proxy.
+     */
+    ReasonPhrases["PROXY_AUTHENTICATION_REQUIRED"] = "Proxy Authentication Required";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-5
+     *
+     * The server is unwilling to process the request because its header fields are too large. The request MAY be resubmitted after reducing the size of the request header fields.
+     */
+    ReasonPhrases["REQUEST_HEADER_FIELDS_TOO_LARGE"] = "Request Header Fields Too Large";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.7
+     *
+     * This response is sent on an idle connection by some servers, even without any previous request by the client. It means that the server would like to shut down this unused connection. This response is used much more since some browsers, like Chrome, Firefox 27+, or IE9, use HTTP pre-connection mechanisms to speed up surfing. Also note that some servers merely shut down the connection without sending this message.
+     */
+    ReasonPhrases["REQUEST_TIMEOUT"] = "Request Timeout";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.11
+     *
+     * Request entity is larger than limits defined by server; the server might close the connection or return an Retry-After header field.
+     */
+    ReasonPhrases["REQUEST_TOO_LONG"] = "Request Entity Too Large";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.12
+     *
+     * The URI requested by the client is longer than the server is willing to interpret.
+     */
+    ReasonPhrases["REQUEST_URI_TOO_LONG"] = "Request-URI Too Long";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7233#section-4.4
+     *
+     * The range specified by the Range header field in the request can't be fulfilled; it's possible that the range is outside the size of the target URI's data.
+     */
+    ReasonPhrases["REQUESTED_RANGE_NOT_SATISFIABLE"] = "Requested Range Not Satisfiable";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.3.6
+     *
+     * This response code is sent after accomplishing request to tell user agent reset document view which sent this request.
+     */
+    ReasonPhrases["RESET_CONTENT"] = "Reset Content";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.4
+     *
+     * Server sent this response to directing client to get requested resource to another URI with an GET request.
+     */
+    ReasonPhrases["SEE_OTHER"] = "See Other";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.6.4
+     *
+     * The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded. Note that together with this response, a user-friendly page explaining the problem should be sent. This responses should be used for temporary conditions and the Retry-After: HTTP header should, if possible, contain the estimated time before the recovery of the service. The webmaster must also take care about the caching-related headers that are sent along with this response, as these temporary condition responses should usually not be cached.
+     */
+    ReasonPhrases["SERVICE_UNAVAILABLE"] = "Service Unavailable";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.2.2
+     *
+     * This code is sent in response to an Upgrade request header by the client, and indicates the protocol the server is switching too.
+     */
+    ReasonPhrases["SWITCHING_PROTOCOLS"] = "Switching Protocols";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.7
+     *
+     * Server sent this response to directing client to get requested resource to another URI with same method that used prior request. This has the same semantic than the 302 Found HTTP response code, with the exception that the user agent must not change the HTTP method used: if a POST was used in the first request, a POST must be used in the second request.
+     */
+    ReasonPhrases["TEMPORARY_REDIRECT"] = "Temporary Redirect";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc6585#section-4
+     *
+     * The user has sent too many requests in a given amount of time ("rate limiting").
+     */
+    ReasonPhrases["TOO_MANY_REQUESTS"] = "Too Many Requests";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7235#section-3.1
+     *
+     * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
+     */
+    ReasonPhrases["UNAUTHORIZED"] = "Unauthorized";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7725
+     *
+     * The user-agent requested a resource that cannot legally be provided, such as a web page censored by a government.
+     */
+    ReasonPhrases["UNAVAILABLE_FOR_LEGAL_REASONS"] = "Unavailable For Legal Reasons";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc2518#section-10.3
+     *
+     * The request was well-formed but was unable to be followed due to semantic errors.
+     */
+    ReasonPhrases["UNPROCESSABLE_ENTITY"] = "Unprocessable Entity";
+    /**
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.13
+     *
+     * The media format of the requested data is not supported by the server, so the server is rejecting the request.
+     */
+    ReasonPhrases["UNSUPPORTED_MEDIA_TYPE"] = "Unsupported Media Type";
+    /**
+     * @deprecated
+     * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.4.6
+     *
+     * Was defined in a previous version of the HTTP specification to indicate that a requested response must be accessed by a proxy. It has been deprecated due to security concerns regarding in-band configuration of a proxy.
+     */
+    ReasonPhrases["USE_PROXY"] = "Use Proxy";
+    /**
+     * Official Documentation @ https://datatracker.ietf.org/doc/html/rfc7540#section-9.1.2
+     *
+     * Defined in the specification of HTTP/2 to indicate that a server is not able to produce a response for the combination of scheme and authority that are included in the request URI.
+     */
+    ReasonPhrases["MISDIRECTED_REQUEST"] = "Misdirected Request";
+})(ReasonPhrases || (ReasonPhrases = {}));
+
+;// CONCATENATED MODULE: ./node_modules/http-status-codes/build/es/index.js
+var __assign = (undefined && undefined.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+
+
+
+
+
+
+/* harmony default export */ const es = (__assign(__assign({}, legacy), { getStatusCode: getStatusCode,
+    getStatusText: getStatusText }));
 
 
 /***/ }),
@@ -23219,6 +28380,1145 @@ if (true) {
 
 /***/ }),
 
+/***/ 8660:
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+
+/* provided dependency */ var process = __webpack_require__(4155);
+/*! *****************************************************************************
+Copyright (C) Microsoft. All rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache Version 2.0 License for specific language governing permissions
+and limitations under the License.
+***************************************************************************** */
+var Reflect;
+(function (Reflect) {
+    // Metadata Proposal
+    // https://rbuckton.github.io/reflect-metadata/
+    (function (factory) {
+        var root = typeof __webpack_require__.g === "object" ? __webpack_require__.g :
+            typeof self === "object" ? self :
+                typeof this === "object" ? this :
+                    Function("return this;")();
+        var exporter = makeExporter(Reflect);
+        if (typeof root.Reflect === "undefined") {
+            root.Reflect = Reflect;
+        }
+        else {
+            exporter = makeExporter(root.Reflect, exporter);
+        }
+        factory(exporter);
+        function makeExporter(target, previous) {
+            return function (key, value) {
+                if (typeof target[key] !== "function") {
+                    Object.defineProperty(target, key, { configurable: true, writable: true, value: value });
+                }
+                if (previous)
+                    previous(key, value);
+            };
+        }
+    })(function (exporter) {
+        var hasOwn = Object.prototype.hasOwnProperty;
+        // feature test for Symbol support
+        var supportsSymbol = typeof Symbol === "function";
+        var toPrimitiveSymbol = supportsSymbol && typeof Symbol.toPrimitive !== "undefined" ? Symbol.toPrimitive : "@@toPrimitive";
+        var iteratorSymbol = supportsSymbol && typeof Symbol.iterator !== "undefined" ? Symbol.iterator : "@@iterator";
+        var supportsCreate = typeof Object.create === "function"; // feature test for Object.create support
+        var supportsProto = { __proto__: [] } instanceof Array; // feature test for __proto__ support
+        var downLevel = !supportsCreate && !supportsProto;
+        var HashMap = {
+            // create an object in dictionary mode (a.k.a. "slow" mode in v8)
+            create: supportsCreate
+                ? function () { return MakeDictionary(Object.create(null)); }
+                : supportsProto
+                    ? function () { return MakeDictionary({ __proto__: null }); }
+                    : function () { return MakeDictionary({}); },
+            has: downLevel
+                ? function (map, key) { return hasOwn.call(map, key); }
+                : function (map, key) { return key in map; },
+            get: downLevel
+                ? function (map, key) { return hasOwn.call(map, key) ? map[key] : undefined; }
+                : function (map, key) { return map[key]; },
+        };
+        // Load global or shim versions of Map, Set, and WeakMap
+        var functionPrototype = Object.getPrototypeOf(Function);
+        var usePolyfill = typeof process === "object" && process.env && process.env["REFLECT_METADATA_USE_MAP_POLYFILL"] === "true";
+        var _Map = !usePolyfill && typeof Map === "function" && typeof Map.prototype.entries === "function" ? Map : CreateMapPolyfill();
+        var _Set = !usePolyfill && typeof Set === "function" && typeof Set.prototype.entries === "function" ? Set : CreateSetPolyfill();
+        var _WeakMap = !usePolyfill && typeof WeakMap === "function" ? WeakMap : CreateWeakMapPolyfill();
+        // [[Metadata]] internal slot
+        // https://rbuckton.github.io/reflect-metadata/#ordinary-object-internal-methods-and-internal-slots
+        var Metadata = new _WeakMap();
+        /**
+         * Applies a set of decorators to a property of a target object.
+         * @param decorators An array of decorators.
+         * @param target The target object.
+         * @param propertyKey (Optional) The property key to decorate.
+         * @param attributes (Optional) The property descriptor for the target key.
+         * @remarks Decorators are applied in reverse order.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     Example = Reflect.decorate(decoratorsArray, Example);
+         *
+         *     // property (on constructor)
+         *     Reflect.decorate(decoratorsArray, Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     Reflect.decorate(decoratorsArray, Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     Object.defineProperty(Example, "staticMethod",
+         *         Reflect.decorate(decoratorsArray, Example, "staticMethod",
+         *             Object.getOwnPropertyDescriptor(Example, "staticMethod")));
+         *
+         *     // method (on prototype)
+         *     Object.defineProperty(Example.prototype, "method",
+         *         Reflect.decorate(decoratorsArray, Example.prototype, "method",
+         *             Object.getOwnPropertyDescriptor(Example.prototype, "method")));
+         *
+         */
+        function decorate(decorators, target, propertyKey, attributes) {
+            if (!IsUndefined(propertyKey)) {
+                if (!IsArray(decorators))
+                    throw new TypeError();
+                if (!IsObject(target))
+                    throw new TypeError();
+                if (!IsObject(attributes) && !IsUndefined(attributes) && !IsNull(attributes))
+                    throw new TypeError();
+                if (IsNull(attributes))
+                    attributes = undefined;
+                propertyKey = ToPropertyKey(propertyKey);
+                return DecorateProperty(decorators, target, propertyKey, attributes);
+            }
+            else {
+                if (!IsArray(decorators))
+                    throw new TypeError();
+                if (!IsConstructor(target))
+                    throw new TypeError();
+                return DecorateConstructor(decorators, target);
+            }
+        }
+        exporter("decorate", decorate);
+        // 4.1.2 Reflect.metadata(metadataKey, metadataValue)
+        // https://rbuckton.github.io/reflect-metadata/#reflect.metadata
+        /**
+         * A default metadata decorator factory that can be used on a class, class member, or parameter.
+         * @param metadataKey The key for the metadata entry.
+         * @param metadataValue The value for the metadata entry.
+         * @returns A decorator function.
+         * @remarks
+         * If `metadataKey` is already defined for the target and target key, the
+         * metadataValue for that key will be overwritten.
+         * @example
+         *
+         *     // constructor
+         *     @Reflect.metadata(key, value)
+         *     class Example {
+         *     }
+         *
+         *     // property (on constructor, TypeScript only)
+         *     class Example {
+         *         @Reflect.metadata(key, value)
+         *         static staticProperty;
+         *     }
+         *
+         *     // property (on prototype, TypeScript only)
+         *     class Example {
+         *         @Reflect.metadata(key, value)
+         *         property;
+         *     }
+         *
+         *     // method (on constructor)
+         *     class Example {
+         *         @Reflect.metadata(key, value)
+         *         static staticMethod() { }
+         *     }
+         *
+         *     // method (on prototype)
+         *     class Example {
+         *         @Reflect.metadata(key, value)
+         *         method() { }
+         *     }
+         *
+         */
+        function metadata(metadataKey, metadataValue) {
+            function decorator(target, propertyKey) {
+                if (!IsObject(target))
+                    throw new TypeError();
+                if (!IsUndefined(propertyKey) && !IsPropertyKey(propertyKey))
+                    throw new TypeError();
+                OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+            }
+            return decorator;
+        }
+        exporter("metadata", metadata);
+        /**
+         * Define a unique metadata entry on the target.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param metadataValue A value that contains attached metadata.
+         * @param target The target object on which to define metadata.
+         * @param propertyKey (Optional) The property key for the target.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     Reflect.defineMetadata("custom:annotation", options, Example);
+         *
+         *     // property (on constructor)
+         *     Reflect.defineMetadata("custom:annotation", options, Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     Reflect.defineMetadata("custom:annotation", options, Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "method");
+         *
+         *     // decorator factory as metadata-producing annotation.
+         *     function MyAnnotation(options): Decorator {
+         *         return (target, key?) => Reflect.defineMetadata("custom:annotation", options, target, key);
+         *     }
+         *
+         */
+        function defineMetadata(metadataKey, metadataValue, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+        }
+        exporter("defineMetadata", defineMetadata);
+        /**
+         * Gets a value indicating whether the target object or its prototype chain has the provided metadata key defined.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns `true` if the metadata key was defined on the target object or its prototype chain; otherwise, `false`.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.hasMetadata("custom:annotation", Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.hasMetadata("custom:annotation", Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.hasMetadata("custom:annotation", Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "method");
+         *
+         */
+        function hasMetadata(metadataKey, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryHasMetadata(metadataKey, target, propertyKey);
+        }
+        exporter("hasMetadata", hasMetadata);
+        /**
+         * Gets a value indicating whether the target object has the provided metadata key defined.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns `true` if the metadata key was defined on the target object; otherwise, `false`.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.hasOwnMetadata("custom:annotation", Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "method");
+         *
+         */
+        function hasOwnMetadata(metadataKey, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryHasOwnMetadata(metadataKey, target, propertyKey);
+        }
+        exporter("hasOwnMetadata", hasOwnMetadata);
+        /**
+         * Gets the metadata value for the provided metadata key on the target object or its prototype chain.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.getMetadata("custom:annotation", Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.getMetadata("custom:annotation", Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.getMetadata("custom:annotation", Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "method");
+         *
+         */
+        function getMetadata(metadataKey, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryGetMetadata(metadataKey, target, propertyKey);
+        }
+        exporter("getMetadata", getMetadata);
+        /**
+         * Gets the metadata value for the provided metadata key on the target object.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.getOwnMetadata("custom:annotation", Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "method");
+         *
+         */
+        function getOwnMetadata(metadataKey, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryGetOwnMetadata(metadataKey, target, propertyKey);
+        }
+        exporter("getOwnMetadata", getOwnMetadata);
+        /**
+         * Gets the metadata keys defined on the target object or its prototype chain.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns An array of unique metadata keys.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.getMetadataKeys(Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.getMetadataKeys(Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.getMetadataKeys(Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.getMetadataKeys(Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.getMetadataKeys(Example.prototype, "method");
+         *
+         */
+        function getMetadataKeys(target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryMetadataKeys(target, propertyKey);
+        }
+        exporter("getMetadataKeys", getMetadataKeys);
+        /**
+         * Gets the unique metadata keys defined on the target object.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns An array of unique metadata keys.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.getOwnMetadataKeys(Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.getOwnMetadataKeys(Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.getOwnMetadataKeys(Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.getOwnMetadataKeys(Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.getOwnMetadataKeys(Example.prototype, "method");
+         *
+         */
+        function getOwnMetadataKeys(target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            return OrdinaryOwnMetadataKeys(target, propertyKey);
+        }
+        exporter("getOwnMetadataKeys", getOwnMetadataKeys);
+        /**
+         * Deletes the metadata entry from the target object with the provided key.
+         * @param metadataKey A key used to store and retrieve metadata.
+         * @param target The target object on which the metadata is defined.
+         * @param propertyKey (Optional) The property key for the target.
+         * @returns `true` if the metadata entry was found and deleted; otherwise, false.
+         * @example
+         *
+         *     class Example {
+         *         // property declarations are not part of ES6, though they are valid in TypeScript:
+         *         // static staticProperty;
+         *         // property;
+         *
+         *         constructor(p) { }
+         *         static staticMethod(p) { }
+         *         method(p) { }
+         *     }
+         *
+         *     // constructor
+         *     result = Reflect.deleteMetadata("custom:annotation", Example);
+         *
+         *     // property (on constructor)
+         *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticProperty");
+         *
+         *     // property (on prototype)
+         *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "property");
+         *
+         *     // method (on constructor)
+         *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticMethod");
+         *
+         *     // method (on prototype)
+         *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "method");
+         *
+         */
+        function deleteMetadata(metadataKey, target, propertyKey) {
+            if (!IsObject(target))
+                throw new TypeError();
+            if (!IsUndefined(propertyKey))
+                propertyKey = ToPropertyKey(propertyKey);
+            var metadataMap = GetOrCreateMetadataMap(target, propertyKey, /*Create*/ false);
+            if (IsUndefined(metadataMap))
+                return false;
+            if (!metadataMap.delete(metadataKey))
+                return false;
+            if (metadataMap.size > 0)
+                return true;
+            var targetMetadata = Metadata.get(target);
+            targetMetadata.delete(propertyKey);
+            if (targetMetadata.size > 0)
+                return true;
+            Metadata.delete(target);
+            return true;
+        }
+        exporter("deleteMetadata", deleteMetadata);
+        function DecorateConstructor(decorators, target) {
+            for (var i = decorators.length - 1; i >= 0; --i) {
+                var decorator = decorators[i];
+                var decorated = decorator(target);
+                if (!IsUndefined(decorated) && !IsNull(decorated)) {
+                    if (!IsConstructor(decorated))
+                        throw new TypeError();
+                    target = decorated;
+                }
+            }
+            return target;
+        }
+        function DecorateProperty(decorators, target, propertyKey, descriptor) {
+            for (var i = decorators.length - 1; i >= 0; --i) {
+                var decorator = decorators[i];
+                var decorated = decorator(target, propertyKey, descriptor);
+                if (!IsUndefined(decorated) && !IsNull(decorated)) {
+                    if (!IsObject(decorated))
+                        throw new TypeError();
+                    descriptor = decorated;
+                }
+            }
+            return descriptor;
+        }
+        function GetOrCreateMetadataMap(O, P, Create) {
+            var targetMetadata = Metadata.get(O);
+            if (IsUndefined(targetMetadata)) {
+                if (!Create)
+                    return undefined;
+                targetMetadata = new _Map();
+                Metadata.set(O, targetMetadata);
+            }
+            var metadataMap = targetMetadata.get(P);
+            if (IsUndefined(metadataMap)) {
+                if (!Create)
+                    return undefined;
+                metadataMap = new _Map();
+                targetMetadata.set(P, metadataMap);
+            }
+            return metadataMap;
+        }
+        // 3.1.1.1 OrdinaryHasMetadata(MetadataKey, O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinaryhasmetadata
+        function OrdinaryHasMetadata(MetadataKey, O, P) {
+            var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
+            if (hasOwn)
+                return true;
+            var parent = OrdinaryGetPrototypeOf(O);
+            if (!IsNull(parent))
+                return OrdinaryHasMetadata(MetadataKey, parent, P);
+            return false;
+        }
+        // 3.1.2.1 OrdinaryHasOwnMetadata(MetadataKey, O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinaryhasownmetadata
+        function OrdinaryHasOwnMetadata(MetadataKey, O, P) {
+            var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/ false);
+            if (IsUndefined(metadataMap))
+                return false;
+            return ToBoolean(metadataMap.has(MetadataKey));
+        }
+        // 3.1.3.1 OrdinaryGetMetadata(MetadataKey, O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinarygetmetadata
+        function OrdinaryGetMetadata(MetadataKey, O, P) {
+            var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
+            if (hasOwn)
+                return OrdinaryGetOwnMetadata(MetadataKey, O, P);
+            var parent = OrdinaryGetPrototypeOf(O);
+            if (!IsNull(parent))
+                return OrdinaryGetMetadata(MetadataKey, parent, P);
+            return undefined;
+        }
+        // 3.1.4.1 OrdinaryGetOwnMetadata(MetadataKey, O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinarygetownmetadata
+        function OrdinaryGetOwnMetadata(MetadataKey, O, P) {
+            var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/ false);
+            if (IsUndefined(metadataMap))
+                return undefined;
+            return metadataMap.get(MetadataKey);
+        }
+        // 3.1.5.1 OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinarydefineownmetadata
+        function OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P) {
+            var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/ true);
+            metadataMap.set(MetadataKey, MetadataValue);
+        }
+        // 3.1.6.1 OrdinaryMetadataKeys(O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinarymetadatakeys
+        function OrdinaryMetadataKeys(O, P) {
+            var ownKeys = OrdinaryOwnMetadataKeys(O, P);
+            var parent = OrdinaryGetPrototypeOf(O);
+            if (parent === null)
+                return ownKeys;
+            var parentKeys = OrdinaryMetadataKeys(parent, P);
+            if (parentKeys.length <= 0)
+                return ownKeys;
+            if (ownKeys.length <= 0)
+                return parentKeys;
+            var set = new _Set();
+            var keys = [];
+            for (var _i = 0, ownKeys_1 = ownKeys; _i < ownKeys_1.length; _i++) {
+                var key = ownKeys_1[_i];
+                var hasKey = set.has(key);
+                if (!hasKey) {
+                    set.add(key);
+                    keys.push(key);
+                }
+            }
+            for (var _a = 0, parentKeys_1 = parentKeys; _a < parentKeys_1.length; _a++) {
+                var key = parentKeys_1[_a];
+                var hasKey = set.has(key);
+                if (!hasKey) {
+                    set.add(key);
+                    keys.push(key);
+                }
+            }
+            return keys;
+        }
+        // 3.1.7.1 OrdinaryOwnMetadataKeys(O, P)
+        // https://rbuckton.github.io/reflect-metadata/#ordinaryownmetadatakeys
+        function OrdinaryOwnMetadataKeys(O, P) {
+            var keys = [];
+            var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/ false);
+            if (IsUndefined(metadataMap))
+                return keys;
+            var keysObj = metadataMap.keys();
+            var iterator = GetIterator(keysObj);
+            var k = 0;
+            while (true) {
+                var next = IteratorStep(iterator);
+                if (!next) {
+                    keys.length = k;
+                    return keys;
+                }
+                var nextValue = IteratorValue(next);
+                try {
+                    keys[k] = nextValue;
+                }
+                catch (e) {
+                    try {
+                        IteratorClose(iterator);
+                    }
+                    finally {
+                        throw e;
+                    }
+                }
+                k++;
+            }
+        }
+        // 6 ECMAScript Data Typ0es and Values
+        // https://tc39.github.io/ecma262/#sec-ecmascript-data-types-and-values
+        function Type(x) {
+            if (x === null)
+                return 1 /* Null */;
+            switch (typeof x) {
+                case "undefined": return 0 /* Undefined */;
+                case "boolean": return 2 /* Boolean */;
+                case "string": return 3 /* String */;
+                case "symbol": return 4 /* Symbol */;
+                case "number": return 5 /* Number */;
+                case "object": return x === null ? 1 /* Null */ : 6 /* Object */;
+                default: return 6 /* Object */;
+            }
+        }
+        // 6.1.1 The Undefined Type
+        // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-undefined-type
+        function IsUndefined(x) {
+            return x === undefined;
+        }
+        // 6.1.2 The Null Type
+        // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-null-type
+        function IsNull(x) {
+            return x === null;
+        }
+        // 6.1.5 The Symbol Type
+        // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-symbol-type
+        function IsSymbol(x) {
+            return typeof x === "symbol";
+        }
+        // 6.1.7 The Object Type
+        // https://tc39.github.io/ecma262/#sec-object-type
+        function IsObject(x) {
+            return typeof x === "object" ? x !== null : typeof x === "function";
+        }
+        // 7.1 Type Conversion
+        // https://tc39.github.io/ecma262/#sec-type-conversion
+        // 7.1.1 ToPrimitive(input [, PreferredType])
+        // https://tc39.github.io/ecma262/#sec-toprimitive
+        function ToPrimitive(input, PreferredType) {
+            switch (Type(input)) {
+                case 0 /* Undefined */: return input;
+                case 1 /* Null */: return input;
+                case 2 /* Boolean */: return input;
+                case 3 /* String */: return input;
+                case 4 /* Symbol */: return input;
+                case 5 /* Number */: return input;
+            }
+            var hint = PreferredType === 3 /* String */ ? "string" : PreferredType === 5 /* Number */ ? "number" : "default";
+            var exoticToPrim = GetMethod(input, toPrimitiveSymbol);
+            if (exoticToPrim !== undefined) {
+                var result = exoticToPrim.call(input, hint);
+                if (IsObject(result))
+                    throw new TypeError();
+                return result;
+            }
+            return OrdinaryToPrimitive(input, hint === "default" ? "number" : hint);
+        }
+        // 7.1.1.1 OrdinaryToPrimitive(O, hint)
+        // https://tc39.github.io/ecma262/#sec-ordinarytoprimitive
+        function OrdinaryToPrimitive(O, hint) {
+            if (hint === "string") {
+                var toString_1 = O.toString;
+                if (IsCallable(toString_1)) {
+                    var result = toString_1.call(O);
+                    if (!IsObject(result))
+                        return result;
+                }
+                var valueOf = O.valueOf;
+                if (IsCallable(valueOf)) {
+                    var result = valueOf.call(O);
+                    if (!IsObject(result))
+                        return result;
+                }
+            }
+            else {
+                var valueOf = O.valueOf;
+                if (IsCallable(valueOf)) {
+                    var result = valueOf.call(O);
+                    if (!IsObject(result))
+                        return result;
+                }
+                var toString_2 = O.toString;
+                if (IsCallable(toString_2)) {
+                    var result = toString_2.call(O);
+                    if (!IsObject(result))
+                        return result;
+                }
+            }
+            throw new TypeError();
+        }
+        // 7.1.2 ToBoolean(argument)
+        // https://tc39.github.io/ecma262/2016/#sec-toboolean
+        function ToBoolean(argument) {
+            return !!argument;
+        }
+        // 7.1.12 ToString(argument)
+        // https://tc39.github.io/ecma262/#sec-tostring
+        function ToString(argument) {
+            return "" + argument;
+        }
+        // 7.1.14 ToPropertyKey(argument)
+        // https://tc39.github.io/ecma262/#sec-topropertykey
+        function ToPropertyKey(argument) {
+            var key = ToPrimitive(argument, 3 /* String */);
+            if (IsSymbol(key))
+                return key;
+            return ToString(key);
+        }
+        // 7.2 Testing and Comparison Operations
+        // https://tc39.github.io/ecma262/#sec-testing-and-comparison-operations
+        // 7.2.2 IsArray(argument)
+        // https://tc39.github.io/ecma262/#sec-isarray
+        function IsArray(argument) {
+            return Array.isArray
+                ? Array.isArray(argument)
+                : argument instanceof Object
+                    ? argument instanceof Array
+                    : Object.prototype.toString.call(argument) === "[object Array]";
+        }
+        // 7.2.3 IsCallable(argument)
+        // https://tc39.github.io/ecma262/#sec-iscallable
+        function IsCallable(argument) {
+            // NOTE: This is an approximation as we cannot check for [[Call]] internal method.
+            return typeof argument === "function";
+        }
+        // 7.2.4 IsConstructor(argument)
+        // https://tc39.github.io/ecma262/#sec-isconstructor
+        function IsConstructor(argument) {
+            // NOTE: This is an approximation as we cannot check for [[Construct]] internal method.
+            return typeof argument === "function";
+        }
+        // 7.2.7 IsPropertyKey(argument)
+        // https://tc39.github.io/ecma262/#sec-ispropertykey
+        function IsPropertyKey(argument) {
+            switch (Type(argument)) {
+                case 3 /* String */: return true;
+                case 4 /* Symbol */: return true;
+                default: return false;
+            }
+        }
+        // 7.3 Operations on Objects
+        // https://tc39.github.io/ecma262/#sec-operations-on-objects
+        // 7.3.9 GetMethod(V, P)
+        // https://tc39.github.io/ecma262/#sec-getmethod
+        function GetMethod(V, P) {
+            var func = V[P];
+            if (func === undefined || func === null)
+                return undefined;
+            if (!IsCallable(func))
+                throw new TypeError();
+            return func;
+        }
+        // 7.4 Operations on Iterator Objects
+        // https://tc39.github.io/ecma262/#sec-operations-on-iterator-objects
+        function GetIterator(obj) {
+            var method = GetMethod(obj, iteratorSymbol);
+            if (!IsCallable(method))
+                throw new TypeError(); // from Call
+            var iterator = method.call(obj);
+            if (!IsObject(iterator))
+                throw new TypeError();
+            return iterator;
+        }
+        // 7.4.4 IteratorValue(iterResult)
+        // https://tc39.github.io/ecma262/2016/#sec-iteratorvalue
+        function IteratorValue(iterResult) {
+            return iterResult.value;
+        }
+        // 7.4.5 IteratorStep(iterator)
+        // https://tc39.github.io/ecma262/#sec-iteratorstep
+        function IteratorStep(iterator) {
+            var result = iterator.next();
+            return result.done ? false : result;
+        }
+        // 7.4.6 IteratorClose(iterator, completion)
+        // https://tc39.github.io/ecma262/#sec-iteratorclose
+        function IteratorClose(iterator) {
+            var f = iterator["return"];
+            if (f)
+                f.call(iterator);
+        }
+        // 9.1 Ordinary Object Internal Methods and Internal Slots
+        // https://tc39.github.io/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+        // 9.1.1.1 OrdinaryGetPrototypeOf(O)
+        // https://tc39.github.io/ecma262/#sec-ordinarygetprototypeof
+        function OrdinaryGetPrototypeOf(O) {
+            var proto = Object.getPrototypeOf(O);
+            if (typeof O !== "function" || O === functionPrototype)
+                return proto;
+            // TypeScript doesn't set __proto__ in ES5, as it's non-standard.
+            // Try to determine the superclass constructor. Compatible implementations
+            // must either set __proto__ on a subclass constructor to the superclass constructor,
+            // or ensure each class has a valid `constructor` property on its prototype that
+            // points back to the constructor.
+            // If this is not the same as Function.[[Prototype]], then this is definately inherited.
+            // This is the case when in ES6 or when using __proto__ in a compatible browser.
+            if (proto !== functionPrototype)
+                return proto;
+            // If the super prototype is Object.prototype, null, or undefined, then we cannot determine the heritage.
+            var prototype = O.prototype;
+            var prototypeProto = prototype && Object.getPrototypeOf(prototype);
+            if (prototypeProto == null || prototypeProto === Object.prototype)
+                return proto;
+            // If the constructor was not a function, then we cannot determine the heritage.
+            var constructor = prototypeProto.constructor;
+            if (typeof constructor !== "function")
+                return proto;
+            // If we have some kind of self-reference, then we cannot determine the heritage.
+            if (constructor === O)
+                return proto;
+            // we have a pretty good guess at the heritage.
+            return constructor;
+        }
+        // naive Map shim
+        function CreateMapPolyfill() {
+            var cacheSentinel = {};
+            var arraySentinel = [];
+            var MapIterator = /** @class */ (function () {
+                function MapIterator(keys, values, selector) {
+                    this._index = 0;
+                    this._keys = keys;
+                    this._values = values;
+                    this._selector = selector;
+                }
+                MapIterator.prototype["@@iterator"] = function () { return this; };
+                MapIterator.prototype[iteratorSymbol] = function () { return this; };
+                MapIterator.prototype.next = function () {
+                    var index = this._index;
+                    if (index >= 0 && index < this._keys.length) {
+                        var result = this._selector(this._keys[index], this._values[index]);
+                        if (index + 1 >= this._keys.length) {
+                            this._index = -1;
+                            this._keys = arraySentinel;
+                            this._values = arraySentinel;
+                        }
+                        else {
+                            this._index++;
+                        }
+                        return { value: result, done: false };
+                    }
+                    return { value: undefined, done: true };
+                };
+                MapIterator.prototype.throw = function (error) {
+                    if (this._index >= 0) {
+                        this._index = -1;
+                        this._keys = arraySentinel;
+                        this._values = arraySentinel;
+                    }
+                    throw error;
+                };
+                MapIterator.prototype.return = function (value) {
+                    if (this._index >= 0) {
+                        this._index = -1;
+                        this._keys = arraySentinel;
+                        this._values = arraySentinel;
+                    }
+                    return { value: value, done: true };
+                };
+                return MapIterator;
+            }());
+            return /** @class */ (function () {
+                function Map() {
+                    this._keys = [];
+                    this._values = [];
+                    this._cacheKey = cacheSentinel;
+                    this._cacheIndex = -2;
+                }
+                Object.defineProperty(Map.prototype, "size", {
+                    get: function () { return this._keys.length; },
+                    enumerable: true,
+                    configurable: true
+                });
+                Map.prototype.has = function (key) { return this._find(key, /*insert*/ false) >= 0; };
+                Map.prototype.get = function (key) {
+                    var index = this._find(key, /*insert*/ false);
+                    return index >= 0 ? this._values[index] : undefined;
+                };
+                Map.prototype.set = function (key, value) {
+                    var index = this._find(key, /*insert*/ true);
+                    this._values[index] = value;
+                    return this;
+                };
+                Map.prototype.delete = function (key) {
+                    var index = this._find(key, /*insert*/ false);
+                    if (index >= 0) {
+                        var size = this._keys.length;
+                        for (var i = index + 1; i < size; i++) {
+                            this._keys[i - 1] = this._keys[i];
+                            this._values[i - 1] = this._values[i];
+                        }
+                        this._keys.length--;
+                        this._values.length--;
+                        if (key === this._cacheKey) {
+                            this._cacheKey = cacheSentinel;
+                            this._cacheIndex = -2;
+                        }
+                        return true;
+                    }
+                    return false;
+                };
+                Map.prototype.clear = function () {
+                    this._keys.length = 0;
+                    this._values.length = 0;
+                    this._cacheKey = cacheSentinel;
+                    this._cacheIndex = -2;
+                };
+                Map.prototype.keys = function () { return new MapIterator(this._keys, this._values, getKey); };
+                Map.prototype.values = function () { return new MapIterator(this._keys, this._values, getValue); };
+                Map.prototype.entries = function () { return new MapIterator(this._keys, this._values, getEntry); };
+                Map.prototype["@@iterator"] = function () { return this.entries(); };
+                Map.prototype[iteratorSymbol] = function () { return this.entries(); };
+                Map.prototype._find = function (key, insert) {
+                    if (this._cacheKey !== key) {
+                        this._cacheIndex = this._keys.indexOf(this._cacheKey = key);
+                    }
+                    if (this._cacheIndex < 0 && insert) {
+                        this._cacheIndex = this._keys.length;
+                        this._keys.push(key);
+                        this._values.push(undefined);
+                    }
+                    return this._cacheIndex;
+                };
+                return Map;
+            }());
+            function getKey(key, _) {
+                return key;
+            }
+            function getValue(_, value) {
+                return value;
+            }
+            function getEntry(key, value) {
+                return [key, value];
+            }
+        }
+        // naive Set shim
+        function CreateSetPolyfill() {
+            return /** @class */ (function () {
+                function Set() {
+                    this._map = new _Map();
+                }
+                Object.defineProperty(Set.prototype, "size", {
+                    get: function () { return this._map.size; },
+                    enumerable: true,
+                    configurable: true
+                });
+                Set.prototype.has = function (value) { return this._map.has(value); };
+                Set.prototype.add = function (value) { return this._map.set(value, value), this; };
+                Set.prototype.delete = function (value) { return this._map.delete(value); };
+                Set.prototype.clear = function () { this._map.clear(); };
+                Set.prototype.keys = function () { return this._map.keys(); };
+                Set.prototype.values = function () { return this._map.values(); };
+                Set.prototype.entries = function () { return this._map.entries(); };
+                Set.prototype["@@iterator"] = function () { return this.keys(); };
+                Set.prototype[iteratorSymbol] = function () { return this.keys(); };
+                return Set;
+            }());
+        }
+        // naive WeakMap shim
+        function CreateWeakMapPolyfill() {
+            var UUID_SIZE = 16;
+            var keys = HashMap.create();
+            var rootKey = CreateUniqueKey();
+            return /** @class */ (function () {
+                function WeakMap() {
+                    this._key = CreateUniqueKey();
+                }
+                WeakMap.prototype.has = function (target) {
+                    var table = GetOrCreateWeakMapTable(target, /*create*/ false);
+                    return table !== undefined ? HashMap.has(table, this._key) : false;
+                };
+                WeakMap.prototype.get = function (target) {
+                    var table = GetOrCreateWeakMapTable(target, /*create*/ false);
+                    return table !== undefined ? HashMap.get(table, this._key) : undefined;
+                };
+                WeakMap.prototype.set = function (target, value) {
+                    var table = GetOrCreateWeakMapTable(target, /*create*/ true);
+                    table[this._key] = value;
+                    return this;
+                };
+                WeakMap.prototype.delete = function (target) {
+                    var table = GetOrCreateWeakMapTable(target, /*create*/ false);
+                    return table !== undefined ? delete table[this._key] : false;
+                };
+                WeakMap.prototype.clear = function () {
+                    // NOTE: not a real clear, just makes the previous data unreachable
+                    this._key = CreateUniqueKey();
+                };
+                return WeakMap;
+            }());
+            function CreateUniqueKey() {
+                var key;
+                do
+                    key = "@@WeakMap@@" + CreateUUID();
+                while (HashMap.has(keys, key));
+                keys[key] = true;
+                return key;
+            }
+            function GetOrCreateWeakMapTable(target, create) {
+                if (!hasOwn.call(target, rootKey)) {
+                    if (!create)
+                        return undefined;
+                    Object.defineProperty(target, rootKey, { value: HashMap.create() });
+                }
+                return target[rootKey];
+            }
+            function FillRandomBytes(buffer, size) {
+                for (var i = 0; i < size; ++i)
+                    buffer[i] = Math.random() * 0xff | 0;
+                return buffer;
+            }
+            function GenRandomBytes(size) {
+                if (typeof Uint8Array === "function") {
+                    if (typeof crypto !== "undefined")
+                        return crypto.getRandomValues(new Uint8Array(size));
+                    if (typeof msCrypto !== "undefined")
+                        return msCrypto.getRandomValues(new Uint8Array(size));
+                    return FillRandomBytes(new Uint8Array(size), size);
+                }
+                return FillRandomBytes(new Array(size), size);
+            }
+            function CreateUUID() {
+                var data = GenRandomBytes(UUID_SIZE);
+                // mark as random - RFC 4122 § 4.4
+                data[6] = data[6] & 0x4f | 0x40;
+                data[8] = data[8] & 0xbf | 0x80;
+                var result = "";
+                for (var offset = 0; offset < UUID_SIZE; ++offset) {
+                    var byte = data[offset];
+                    if (offset === 4 || offset === 6 || offset === 8)
+                        result += "-";
+                    if (byte < 16)
+                        result += "0";
+                    result += byte.toString(16).toLowerCase();
+                }
+                return result;
+            }
+        }
+        // uses a heuristic used by v8 and chakra to force an object into dictionary mode.
+        function MakeDictionary(obj) {
+            obj.__ = undefined;
+            delete obj.__;
+            return obj;
+        }
+    });
+})(Reflect || (Reflect = {}));
+
+
+/***/ }),
+
 /***/ 53:
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
@@ -23254,6 +29554,3918 @@ exports.unstable_shouldYield=M;exports.unstable_wrapCallback=function(a){var b=y
 if (true) {
   module.exports = __webpack_require__(53);
 } else {}
+
+
+/***/ }),
+
+/***/ 7856:
+/***/ (function(module) {
+
+void function(global) {
+
+  'use strict';
+
+  //  ValueError :: String -> Error
+  function ValueError(message) {
+    var err = new Error(message);
+    err.name = 'ValueError';
+    return err;
+  }
+
+  //  create :: Object -> String,*... -> String
+  function create(transformers) {
+    return function(template) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      var idx = 0;
+      var state = 'UNDEFINED';
+
+      return template.replace(
+        /([{}])\1|[{](.*?)(?:!(.+?))?[}]/g,
+        function(match, literal, _key, xf) {
+          if (literal != null) {
+            return literal;
+          }
+          var key = _key;
+          if (key.length > 0) {
+            if (state === 'IMPLICIT') {
+              throw ValueError('cannot switch from ' +
+                               'implicit to explicit numbering');
+            }
+            state = 'EXPLICIT';
+          } else {
+            if (state === 'EXPLICIT') {
+              throw ValueError('cannot switch from ' +
+                               'explicit to implicit numbering');
+            }
+            state = 'IMPLICIT';
+            key = String(idx);
+            idx += 1;
+          }
+
+          //  1.  Split the key into a lookup path.
+          //  2.  If the first path component is not an index, prepend '0'.
+          //  3.  Reduce the lookup path to a single result. If the lookup
+          //      succeeds the result is a singleton array containing the
+          //      value at the lookup path; otherwise the result is [].
+          //  4.  Unwrap the result by reducing with '' as the default value.
+          var path = key.split('.');
+          var value = (/^\d+$/.test(path[0]) ? path : ['0'].concat(path))
+            .reduce(function(maybe, key) {
+              return maybe.reduce(function(_, x) {
+                return x != null && key in Object(x) ?
+                  [typeof x[key] === 'function' ? x[key]() : x[key]] :
+                  [];
+              }, []);
+            }, [args])
+            .reduce(function(_, x) { return x; }, '');
+
+          if (xf == null) {
+            return value;
+          } else if (Object.prototype.hasOwnProperty.call(transformers, xf)) {
+            return transformers[xf](value);
+          } else {
+            throw ValueError('no transformer named "' + xf + '"');
+          }
+        }
+      );
+    };
+  }
+
+  //  format :: String,*... -> String
+  var format = create({});
+
+  //  format.create :: Object -> String,*... -> String
+  format.create = create;
+
+  //  format.extend :: Object,Object -> ()
+  format.extend = function(prototype, transformers) {
+    var $format = create(transformers);
+    prototype.format = function() {
+      var args = Array.prototype.slice.call(arguments);
+      args.unshift(this);
+      return $format.apply(global, args);
+    };
+  };
+
+  /* istanbul ignore else */
+  if (true) {
+    module.exports = format;
+  } else {}
+
+}.call(this, this);
+
+
+/***/ }),
+
+/***/ 5459:
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+// ESM COMPAT FLAG
+__webpack_require__.r(__webpack_exports__);
+
+// EXPORTS
+__webpack_require__.d(__webpack_exports__, {
+  "BeforeDeserialized": () => (/* reexport */ BeforeDeserialized),
+  "BufferConverter": () => (/* reexport */ BufferConverter),
+  "DateConverter": () => (/* reexport */ DateConverter),
+  "JSON": () => (/* reexport */ TaJson),
+  "JsonConstructor": () => (/* reexport */ JsonConstructor),
+  "JsonConverter": () => (/* reexport */ JsonConverter),
+  "JsonDiscriminatorProperty": () => (/* reexport */ JsonDiscriminatorProperty),
+  "JsonDiscriminatorValue": () => (/* reexport */ JsonDiscriminatorValue),
+  "JsonElementType": () => (/* reexport */ JsonElementType),
+  "JsonObject": () => (/* reexport */ JsonObject),
+  "JsonProperty": () => (/* reexport */ JsonProperty),
+  "JsonReadonly": () => (/* reexport */ JsonReadonly),
+  "JsonType": () => (/* reexport */ JsonType),
+  "JsonWriteonly": () => (/* reexport */ JsonWriteonly),
+  "OnDeserialized": () => (/* reexport */ OnDeserialized),
+  "TaJson": () => (/* reexport */ TaJson),
+  "propertyConverters": () => (/* reexport */ propertyConverters)
+});
+
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/classes/property-definition.js
+var PropertyDefinition = /** @class */ (function () {
+    function PropertyDefinition() {
+        this.array = false;
+        this.set = false;
+        this.readonly = false;
+        this.writeonly = false;
+    }
+    return PropertyDefinition;
+}());
+
+//# sourceMappingURL=property-definition.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/classes/object-definition.js
+
+var ObjectDefinition = /** @class */ (function () {
+    function ObjectDefinition() {
+        this.ctr = function () { };
+        this.beforeDeserialized = function () { };
+        this.onDeserialized = function () { };
+        this.properties = new Map();
+    }
+    ObjectDefinition.prototype.getProperty = function (key) {
+        var property = this.properties.get(key);
+        if (!property) {
+            property = new PropertyDefinition();
+            this.properties.set(key, property);
+        }
+        return property;
+    };
+    return ObjectDefinition;
+}());
+
+var objectDefinitions = new Map();
+function getDefinition(target) {
+    var definition = objectDefinitions.get(target);
+    if (!definition) {
+        definition = new ObjectDefinition();
+        objectDefinitions.set(target, definition);
+    }
+    return definition;
+}
+function getInheritanceChain(type) {
+    if (!type) {
+        return [];
+    }
+    var parent = Object.getPrototypeOf(type);
+    return [type.constructor].concat(getInheritanceChain(parent));
+}
+function getChildClassDefinitions(parentType) {
+    var childDefs = [];
+    objectDefinitions.forEach(function (def, type) {
+        var superClass = Object.getPrototypeOf(type.prototype).constructor;
+        if (superClass === parentType) {
+            childDefs.push([type, def]);
+        }
+    });
+    return childDefs;
+}
+function getTypedInheritanceChain(type, object) {
+    var parentDef = objectDefinitions.get(type);
+    var childDefs = [];
+    if (object && parentDef && parentDef.discriminatorProperty) {
+        childDefs = childDefs.concat(getChildClassDefinitions(type));
+    }
+    var actualType;
+    while (childDefs.length !== 0 && !actualType) {
+        var _a = childDefs.shift(), t = _a[0], def = _a[1]; // We are checking the length in the loop so an assertion here is fine.
+        if (def.hasOwnProperty("discriminatorValue")) {
+            if (object && parentDef && def.discriminatorValue === object[parentDef.discriminatorProperty]) {
+                if (def.hasOwnProperty("discriminatorProperty")) {
+                    return getTypedInheritanceChain(t, object);
+                }
+                actualType = t;
+            }
+        }
+        else {
+            childDefs = childDefs.concat(getChildClassDefinitions(t));
+        }
+    }
+    if (!actualType) {
+        actualType = type;
+    }
+    var inheritanceChain = new Set(getInheritanceChain(Object.create(actualType.prototype)));
+    return Array.from(inheritanceChain).filter(function (t) { return objectDefinitions.has(t); });
+}
+//# sourceMappingURL=object-definition.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-object.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonObject() {
+    return function (constructor) {
+        getDefinition(constructor);
+    };
+}
+//# sourceMappingURL=json-object.js.map
+// EXTERNAL MODULE: ./node_modules/reflect-metadata/Reflect.js
+var reflect_metadata_Reflect = __webpack_require__(8660);
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-property.js
+
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonProperty(propertyName) {
+    return function (target, key) {
+        var type = Reflect.getMetadata("design:type", target, key.toString());
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        property.serializedName = propertyName || key.toString();
+        property.array = type === Array;
+        property.set = type === Set;
+        if (!property.array && !property.set && !property.type) {
+            property.type = type;
+        }
+    };
+}
+//# sourceMappingURL=json-property.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-type.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonType(type) {
+    return function (target, key) {
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        property.type = type;
+    };
+}
+//# sourceMappingURL=json-type.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-element-type.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonElementType(type) {
+    return function (target, key) {
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        property.type = type;
+    };
+}
+//# sourceMappingURL=json-element-type.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-converter.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonConverter(converter) {
+    return function (target, key) {
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        if (typeof converter === "function") {
+            property.converter = new converter();
+        }
+        else {
+            property.converter = converter;
+        }
+    };
+}
+//# sourceMappingURL=json-converter.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-readonly.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonReadonly() {
+    return function (target, key) {
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        property.readonly = true;
+    };
+}
+//# sourceMappingURL=json-readonly.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-writeonly.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonWriteonly() {
+    return function (target, key) {
+        var property = getDefinition(target.constructor).getProperty(key.toString());
+        property.writeonly = true;
+    };
+}
+//# sourceMappingURL=json-writeonly.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-discriminator-property.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonDiscriminatorProperty(property) {
+    return function (constructor) {
+        getDefinition(constructor).discriminatorProperty = property;
+    };
+}
+//# sourceMappingURL=json-discriminator-property.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-discriminator-value.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonDiscriminatorValue(value) {
+    return function (constructor) {
+        getDefinition(constructor).discriminatorValue = value;
+    };
+}
+//# sourceMappingURL=json-discriminator-value.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/json-constructor.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function JsonConstructor() {
+    return function (target, key) {
+        var definition = getDefinition(target.constructor);
+        definition.ctr = target[key.toString()];
+    };
+}
+//# sourceMappingURL=json-constructor.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/before-deserialized.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function BeforeDeserialized() {
+    return function (target, key) {
+        var definition = getDefinition(target.constructor);
+        definition.beforeDeserialized = target[key.toString()];
+    };
+}
+//# sourceMappingURL=before-deserialized.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/on-deserialized.js
+
+// tslint:disable:ext-variable-name only-arrow-functions
+function OnDeserialized() {
+    return function (target, key) {
+        var definition = getDefinition(target.constructor);
+        definition.onDeserialized = target[key.toString()];
+    };
+}
+//# sourceMappingURL=on-deserialized.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/decorators/index.js
+
+
+
+
+
+
+
+
+
+
+
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/converters/date-converter.js
+var DateConverter = /** @class */ (function () {
+    function DateConverter() {
+    }
+    DateConverter.prototype.serialize = function (property) {
+        return property.toString();
+    };
+    DateConverter.prototype.deserialize = function (value) {
+        return new Date(value);
+    };
+    return DateConverter;
+}());
+
+//# sourceMappingURL=date-converter.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/converters/buffer-converter.js
+/* provided dependency */ var Buffer = __webpack_require__(8764)["Buffer"];
+var BufferConverter = /** @class */ (function () {
+    function BufferConverter(encoding) {
+        if (encoding === void 0) { encoding = "json"; }
+        this._encoding = encoding;
+    }
+    BufferConverter.prototype.serialize = function (property) {
+        if (this._encoding === "json") {
+            return property.toJSON();
+        }
+        return property.toString(this._encoding);
+    };
+    BufferConverter.prototype.deserialize = function (value) {
+        if (this._encoding === "json") {
+            return Buffer.from(value.data);
+        }
+        return Buffer.from(value, this._encoding);
+    };
+    return BufferConverter;
+}());
+
+//# sourceMappingURL=buffer-converter.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/converters/converter.js
+/* provided dependency */ var converter_Buffer = __webpack_require__(8764)["Buffer"];
+
+
+var propertyConverters = new Map();
+// Only import Buffer code if running in NodeJS
+if (typeof window === "undefined") {
+    propertyConverters.set(converter_Buffer, new BufferConverter());
+}
+propertyConverters.set(Date, new DateConverter());
+//# sourceMappingURL=converter.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/converters/index.js
+
+
+
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/methods/serialize.js
+
+
+function serialize(value, type) {
+    if (value.constructor === Array) {
+        return value.map(function (o) { return serializeRootObject(o, type); });
+    }
+    return serializeRootObject(value, type);
+}
+function serializeRootObject(object, type) {
+    if (type === void 0) { type = Object.getPrototypeOf(object).constructor; }
+    var inheritanceChain = getTypedInheritanceChain(type);
+    if (inheritanceChain.length === 0) {
+        return object;
+    }
+    var definitions = inheritanceChain
+        .map(function (t) { return objectDefinitions.get(t); })
+        .filter(function (t) { return !!t; }); // Typescript doesn't yet support the undefined filter
+    var output = {};
+    definitions.forEach(function (d) {
+        d.properties.forEach(function (p, key) {
+            if (!p.type) {
+                throw new Error("Cannot serialize property '" + key + "' without type!");
+            }
+            var value = object[key];
+            if (value == undefined || p.writeonly) {
+                return;
+            }
+            if (p.set) {
+                output[p.serializedName] = serializeArray(Array.from(value || []), p);
+                return;
+            }
+            if (p.array) {
+                output[p.serializedName] = serializeArray(value, p);
+                return;
+            }
+            output[p.serializedName] = serializeObject(value, p);
+        });
+    });
+    return output;
+}
+function serializeArray(array, definition) {
+    return array.map(function (v) { return serializeObject(v, definition); });
+}
+function serializeObject(object, definition) {
+    var primitive = definition.type === String || definition.type === Boolean || definition.type === Number;
+    var value = object;
+    var converter = definition.converter || propertyConverters.get(definition.type);
+    if (converter) {
+        return converter.serialize(value);
+    }
+    if (!primitive) {
+        var objDefinition = objectDefinitions.get(definition.type);
+        if (objDefinition) {
+            if (value instanceof definition.type) {
+                return serialize(value);
+            }
+            return serialize(value, definition.type);
+        }
+    }
+    return value;
+}
+//# sourceMappingURL=serialize.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/methods/deserialize.js
+
+
+function deserialize(object, type, options) {
+    if (options === void 0) { options = { runConstructor: false }; }
+    if (object && object.constructor === Array) {
+        return object.map(function (o) { return deserializeRootObject(o, type, options); });
+    }
+    return deserializeRootObject(object, type, options);
+}
+function deserializeRootObject(object, objectType, options) {
+    if (objectType === void 0) { objectType = Object; }
+    if (!objectDefinitions.has(objectType)) {
+        return object;
+    }
+    var values = object;
+    var _a = getTypedInheritanceChain(objectType, values), type = _a[0], superTypes = _a.slice(1);
+    var output = Object.create(type.prototype);
+    var definitions = superTypes.reverse().concat([type]).map(function (t) { return objectDefinitions.get(t); }).filter(function (t) { return !!t; });
+    definitions.forEach(function (d) {
+        if (options.runConstructor) {
+            d.ctr.call(output);
+        }
+        d.beforeDeserialized.call(output);
+        d.properties.forEach(function (p, key) {
+            if (!p.type) {
+                throw new Error("Cannot deserialize property '" + key + "' without type!");
+            }
+            var value = values[p.serializedName];
+            if (value == undefined || p.readonly) {
+                return;
+            }
+            if (p.array || p.set) {
+                output[key] = deserializeArray(value, p, options);
+                if (p.set) {
+                    output[key] = new Set(output[key]);
+                }
+                return;
+            }
+            output[key] = deserializeObject(value, p, options);
+        });
+        d.onDeserialized.call(output);
+    });
+    return output;
+}
+function deserializeArray(array, definition, options) {
+    return array.map(function (v) { return deserializeObject(v, definition, options); });
+}
+function deserializeObject(object, definition, options) {
+    var primitive = definition.type === String || definition.type === Boolean || definition.type === Number;
+    var value = object;
+    var converter = definition.converter || propertyConverters.get(definition.type);
+    if (converter) {
+        return converter.deserialize(value);
+    }
+    if (!primitive) {
+        var objDefinition = objectDefinitions.get(definition.type);
+        if (objDefinition) {
+            return deserialize(value, definition.type);
+        }
+    }
+    return value;
+}
+//# sourceMappingURL=deserialize.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/ta-json.js
+
+
+var TaJson = /** @class */ (function () {
+    function TaJson() {
+    }
+    TaJson.deserialize = function (object, type, options) {
+        return deserialize(object, type, options);
+    };
+    TaJson.parse = function (json, type, options) {
+        return this.deserialize(JSON.parse(json), type, options);
+    };
+    TaJson.serialize = function (value) {
+        return serialize(value);
+    };
+    TaJson.stringify = function (object) {
+        return JSON.stringify(this.serialize(object));
+    };
+    return TaJson;
+}());
+
+//# sourceMappingURL=ta-json.js.map
+;// CONCATENATED MODULE: ./node_modules/ta-json/dist/es6/index.js
+
+
+// Export both as JSON name but also local name.
+
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 2251:
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
+ * URI.js - Mutating URLs
+ * IPv6 Support
+ *
+ * Version: 1.19.11
+ *
+ * Author: Rodney Rehm
+ * Web: http://medialize.github.io/URI.js/
+ *
+ * Licensed under
+ *   MIT License http://www.opensource.org/licenses/mit-license
+ *
+ */
+
+(function (root, factory) {
+  'use strict';
+  // https://github.com/umdjs/umd/blob/master/returnExports.js
+  if ( true && module.exports) {
+    // Node
+    module.exports = factory();
+  } else if (true) {
+    // AMD. Register as an anonymous module.
+    !(__WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+		(__WEBPACK_AMD_DEFINE_FACTORY__.call(exports, __webpack_require__, exports, module)) :
+		__WEBPACK_AMD_DEFINE_FACTORY__),
+		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+}(this, function (root) {
+  'use strict';
+
+  /*
+  var _in = "fe80:0000:0000:0000:0204:61ff:fe9d:f156";
+  var _out = IPv6.best(_in);
+  var _expected = "fe80::204:61ff:fe9d:f156";
+
+  console.log(_in, _out, _expected, _out === _expected);
+  */
+
+  // save current IPv6 variable, if any
+  var _IPv6 = root && root.IPv6;
+
+  function bestPresentation(address) {
+    // based on:
+    // Javascript to test an IPv6 address for proper format, and to
+    // present the "best text representation" according to IETF Draft RFC at
+    // http://tools.ietf.org/html/draft-ietf-6man-text-addr-representation-04
+    // 8 Feb 2010 Rich Brown, Dartware, LLC
+    // Please feel free to use this code as long as you provide a link to
+    // http://www.intermapper.com
+    // http://intermapper.com/support/tools/IPV6-Validator.aspx
+    // http://download.dartware.com/thirdparty/ipv6validator.js
+
+    var _address = address.toLowerCase();
+    var segments = _address.split(':');
+    var length = segments.length;
+    var total = 8;
+
+    // trim colons (:: or ::a:b:c… or …a:b:c::)
+    if (segments[0] === '' && segments[1] === '' && segments[2] === '') {
+      // must have been ::
+      // remove first two items
+      segments.shift();
+      segments.shift();
+    } else if (segments[0] === '' && segments[1] === '') {
+      // must have been ::xxxx
+      // remove the first item
+      segments.shift();
+    } else if (segments[length - 1] === '' && segments[length - 2] === '') {
+      // must have been xxxx::
+      segments.pop();
+    }
+
+    length = segments.length;
+
+    // adjust total segments for IPv4 trailer
+    if (segments[length - 1].indexOf('.') !== -1) {
+      // found a "." which means IPv4
+      total = 7;
+    }
+
+    // fill empty segments them with "0000"
+    var pos;
+    for (pos = 0; pos < length; pos++) {
+      if (segments[pos] === '') {
+        break;
+      }
+    }
+
+    if (pos < total) {
+      segments.splice(pos, 1, '0000');
+      while (segments.length < total) {
+        segments.splice(pos, 0, '0000');
+      }
+    }
+
+    // strip leading zeros
+    var _segments;
+    for (var i = 0; i < total; i++) {
+      _segments = segments[i].split('');
+      for (var j = 0; j < 3 ; j++) {
+        if (_segments[0] === '0' && _segments.length > 1) {
+          _segments.splice(0,1);
+        } else {
+          break;
+        }
+      }
+
+      segments[i] = _segments.join('');
+    }
+
+    // find longest sequence of zeroes and coalesce them into one segment
+    var best = -1;
+    var _best = 0;
+    var _current = 0;
+    var current = -1;
+    var inzeroes = false;
+    // i; already declared
+
+    for (i = 0; i < total; i++) {
+      if (inzeroes) {
+        if (segments[i] === '0') {
+          _current += 1;
+        } else {
+          inzeroes = false;
+          if (_current > _best) {
+            best = current;
+            _best = _current;
+          }
+        }
+      } else {
+        if (segments[i] === '0') {
+          inzeroes = true;
+          current = i;
+          _current = 1;
+        }
+      }
+    }
+
+    if (_current > _best) {
+      best = current;
+      _best = _current;
+    }
+
+    if (_best > 1) {
+      segments.splice(best, _best, '');
+    }
+
+    length = segments.length;
+
+    // assemble remaining segments
+    var result = '';
+    if (segments[0] === '')  {
+      result = ':';
+    }
+
+    for (i = 0; i < length; i++) {
+      result += segments[i];
+      if (i === length - 1) {
+        break;
+      }
+
+      result += ':';
+    }
+
+    if (segments[length - 1] === '') {
+      result += ':';
+    }
+
+    return result;
+  }
+
+  function noConflict() {
+    /*jshint validthis: true */
+    if (root.IPv6 === this) {
+      root.IPv6 = _IPv6;
+    }
+
+    return this;
+  }
+
+  return {
+    best: bestPresentation,
+    noConflict: noConflict
+  };
+}));
+
+
+/***/ }),
+
+/***/ 6106:
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
+ * URI.js - Mutating URLs
+ * Second Level Domain (SLD) Support
+ *
+ * Version: 1.19.11
+ *
+ * Author: Rodney Rehm
+ * Web: http://medialize.github.io/URI.js/
+ *
+ * Licensed under
+ *   MIT License http://www.opensource.org/licenses/mit-license
+ *
+ */
+
+(function (root, factory) {
+  'use strict';
+  // https://github.com/umdjs/umd/blob/master/returnExports.js
+  if ( true && module.exports) {
+    // Node
+    module.exports = factory();
+  } else if (true) {
+    // AMD. Register as an anonymous module.
+    !(__WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+		(__WEBPACK_AMD_DEFINE_FACTORY__.call(exports, __webpack_require__, exports, module)) :
+		__WEBPACK_AMD_DEFINE_FACTORY__),
+		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+}(this, function (root) {
+  'use strict';
+
+  // save current SecondLevelDomains variable, if any
+  var _SecondLevelDomains = root && root.SecondLevelDomains;
+
+  var SLD = {
+    // list of known Second Level Domains
+    // converted list of SLDs from https://github.com/gavingmiller/second-level-domains
+    // ----
+    // publicsuffix.org is more current and actually used by a couple of browsers internally.
+    // downside is it also contains domains like "dyndns.org" - which is fine for the security
+    // issues browser have to deal with (SOP for cookies, etc) - but is way overboard for URI.js
+    // ----
+    list: {
+      'ac':' com gov mil net org ',
+      'ae':' ac co gov mil name net org pro sch ',
+      'af':' com edu gov net org ',
+      'al':' com edu gov mil net org ',
+      'ao':' co ed gv it og pb ',
+      'ar':' com edu gob gov int mil net org tur ',
+      'at':' ac co gv or ',
+      'au':' asn com csiro edu gov id net org ',
+      'ba':' co com edu gov mil net org rs unbi unmo unsa untz unze ',
+      'bb':' biz co com edu gov info net org store tv ',
+      'bh':' biz cc com edu gov info net org ',
+      'bn':' com edu gov net org ',
+      'bo':' com edu gob gov int mil net org tv ',
+      'br':' adm adv agr am arq art ato b bio blog bmd cim cng cnt com coop ecn edu eng esp etc eti far flog fm fnd fot fst g12 ggf gov imb ind inf jor jus lel mat med mil mus net nom not ntr odo org ppg pro psc psi qsl rec slg srv tmp trd tur tv vet vlog wiki zlg ',
+      'bs':' com edu gov net org ',
+      'bz':' du et om ov rg ',
+      'ca':' ab bc mb nb nf nl ns nt nu on pe qc sk yk ',
+      'ck':' biz co edu gen gov info net org ',
+      'cn':' ac ah bj com cq edu fj gd gov gs gx gz ha hb he hi hl hn jl js jx ln mil net nm nx org qh sc sd sh sn sx tj tw xj xz yn zj ',
+      'co':' com edu gov mil net nom org ',
+      'cr':' ac c co ed fi go or sa ',
+      'cy':' ac biz com ekloges gov ltd name net org parliament press pro tm ',
+      'do':' art com edu gob gov mil net org sld web ',
+      'dz':' art asso com edu gov net org pol ',
+      'ec':' com edu fin gov info med mil net org pro ',
+      'eg':' com edu eun gov mil name net org sci ',
+      'er':' com edu gov ind mil net org rochest w ',
+      'es':' com edu gob nom org ',
+      'et':' biz com edu gov info name net org ',
+      'fj':' ac biz com info mil name net org pro ',
+      'fk':' ac co gov net nom org ',
+      'fr':' asso com f gouv nom prd presse tm ',
+      'gg':' co net org ',
+      'gh':' com edu gov mil org ',
+      'gn':' ac com gov net org ',
+      'gr':' com edu gov mil net org ',
+      'gt':' com edu gob ind mil net org ',
+      'gu':' com edu gov net org ',
+      'hk':' com edu gov idv net org ',
+      'hu':' 2000 agrar bolt casino city co erotica erotika film forum games hotel info ingatlan jogasz konyvelo lakas media news org priv reklam sex shop sport suli szex tm tozsde utazas video ',
+      'id':' ac co go mil net or sch web ',
+      'il':' ac co gov idf k12 muni net org ',
+      'in':' ac co edu ernet firm gen gov i ind mil net nic org res ',
+      'iq':' com edu gov i mil net org ',
+      'ir':' ac co dnssec gov i id net org sch ',
+      'it':' edu gov ',
+      'je':' co net org ',
+      'jo':' com edu gov mil name net org sch ',
+      'jp':' ac ad co ed go gr lg ne or ',
+      'ke':' ac co go info me mobi ne or sc ',
+      'kh':' com edu gov mil net org per ',
+      'ki':' biz com de edu gov info mob net org tel ',
+      'km':' asso com coop edu gouv k medecin mil nom notaires pharmaciens presse tm veterinaire ',
+      'kn':' edu gov net org ',
+      'kr':' ac busan chungbuk chungnam co daegu daejeon es gangwon go gwangju gyeongbuk gyeonggi gyeongnam hs incheon jeju jeonbuk jeonnam k kg mil ms ne or pe re sc seoul ulsan ',
+      'kw':' com edu gov net org ',
+      'ky':' com edu gov net org ',
+      'kz':' com edu gov mil net org ',
+      'lb':' com edu gov net org ',
+      'lk':' assn com edu gov grp hotel int ltd net ngo org sch soc web ',
+      'lr':' com edu gov net org ',
+      'lv':' asn com conf edu gov id mil net org ',
+      'ly':' com edu gov id med net org plc sch ',
+      'ma':' ac co gov m net org press ',
+      'mc':' asso tm ',
+      'me':' ac co edu gov its net org priv ',
+      'mg':' com edu gov mil nom org prd tm ',
+      'mk':' com edu gov inf name net org pro ',
+      'ml':' com edu gov net org presse ',
+      'mn':' edu gov org ',
+      'mo':' com edu gov net org ',
+      'mt':' com edu gov net org ',
+      'mv':' aero biz com coop edu gov info int mil museum name net org pro ',
+      'mw':' ac co com coop edu gov int museum net org ',
+      'mx':' com edu gob net org ',
+      'my':' com edu gov mil name net org sch ',
+      'nf':' arts com firm info net other per rec store web ',
+      'ng':' biz com edu gov mil mobi name net org sch ',
+      'ni':' ac co com edu gob mil net nom org ',
+      'np':' com edu gov mil net org ',
+      'nr':' biz com edu gov info net org ',
+      'om':' ac biz co com edu gov med mil museum net org pro sch ',
+      'pe':' com edu gob mil net nom org sld ',
+      'ph':' com edu gov i mil net ngo org ',
+      'pk':' biz com edu fam gob gok gon gop gos gov net org web ',
+      'pl':' art bialystok biz com edu gda gdansk gorzow gov info katowice krakow lodz lublin mil net ngo olsztyn org poznan pwr radom slupsk szczecin torun warszawa waw wroc wroclaw zgora ',
+      'pr':' ac biz com edu est gov info isla name net org pro prof ',
+      'ps':' com edu gov net org plo sec ',
+      'pw':' belau co ed go ne or ',
+      'ro':' arts com firm info nom nt org rec store tm www ',
+      'rs':' ac co edu gov in org ',
+      'sb':' com edu gov net org ',
+      'sc':' com edu gov net org ',
+      'sh':' co com edu gov net nom org ',
+      'sl':' com edu gov net org ',
+      'st':' co com consulado edu embaixada gov mil net org principe saotome store ',
+      'sv':' com edu gob org red ',
+      'sz':' ac co org ',
+      'tr':' av bbs bel biz com dr edu gen gov info k12 name net org pol tel tsk tv web ',
+      'tt':' aero biz cat co com coop edu gov info int jobs mil mobi museum name net org pro tel travel ',
+      'tw':' club com ebiz edu game gov idv mil net org ',
+      'mu':' ac co com gov net or org ',
+      'mz':' ac co edu gov org ',
+      'na':' co com ',
+      'nz':' ac co cri geek gen govt health iwi maori mil net org parliament school ',
+      'pa':' abo ac com edu gob ing med net nom org sld ',
+      'pt':' com edu gov int net nome org publ ',
+      'py':' com edu gov mil net org ',
+      'qa':' com edu gov mil net org ',
+      're':' asso com nom ',
+      'ru':' ac adygeya altai amur arkhangelsk astrakhan bashkiria belgorod bir bryansk buryatia cbg chel chelyabinsk chita chukotka chuvashia com dagestan e-burg edu gov grozny int irkutsk ivanovo izhevsk jar joshkar-ola kalmykia kaluga kamchatka karelia kazan kchr kemerovo khabarovsk khakassia khv kirov koenig komi kostroma kranoyarsk kuban kurgan kursk lipetsk magadan mari mari-el marine mil mordovia mosreg msk murmansk nalchik net nnov nov novosibirsk nsk omsk orenburg org oryol penza perm pp pskov ptz rnd ryazan sakhalin samara saratov simbirsk smolensk spb stavropol stv surgut tambov tatarstan tom tomsk tsaritsyn tsk tula tuva tver tyumen udm udmurtia ulan-ude vladikavkaz vladimir vladivostok volgograd vologda voronezh vrn vyatka yakutia yamal yekaterinburg yuzhno-sakhalinsk ',
+      'rw':' ac co com edu gouv gov int mil net ',
+      'sa':' com edu gov med net org pub sch ',
+      'sd':' com edu gov info med net org tv ',
+      'se':' a ac b bd c d e f g h i k l m n o org p parti pp press r s t tm u w x y z ',
+      'sg':' com edu gov idn net org per ',
+      'sn':' art com edu gouv org perso univ ',
+      'sy':' com edu gov mil net news org ',
+      'th':' ac co go in mi net or ',
+      'tj':' ac biz co com edu go gov info int mil name net nic org test web ',
+      'tn':' agrinet com defense edunet ens fin gov ind info intl mincom nat net org perso rnrt rns rnu tourism ',
+      'tz':' ac co go ne or ',
+      'ua':' biz cherkassy chernigov chernovtsy ck cn co com crimea cv dn dnepropetrovsk donetsk dp edu gov if in ivano-frankivsk kh kharkov kherson khmelnitskiy kiev kirovograd km kr ks kv lg lugansk lutsk lviv me mk net nikolaev od odessa org pl poltava pp rovno rv sebastopol sumy te ternopil uzhgorod vinnica vn zaporizhzhe zhitomir zp zt ',
+      'ug':' ac co go ne or org sc ',
+      'uk':' ac bl british-library co cym gov govt icnet jet lea ltd me mil mod national-library-scotland nel net nhs nic nls org orgn parliament plc police sch scot soc ',
+      'us':' dni fed isa kids nsn ',
+      'uy':' com edu gub mil net org ',
+      've':' co com edu gob info mil net org web ',
+      'vi':' co com k12 net org ',
+      'vn':' ac biz com edu gov health info int name net org pro ',
+      'ye':' co com gov ltd me net org plc ',
+      'yu':' ac co edu gov org ',
+      'za':' ac agric alt bourse city co cybernet db edu gov grondar iaccess imt inca landesign law mil net ngo nis nom olivetti org pix school tm web ',
+      'zm':' ac co com edu gov net org sch ',
+      // https://en.wikipedia.org/wiki/CentralNic#Second-level_domains
+      'com': 'ar br cn de eu gb gr hu jpn kr no qc ru sa se uk us uy za ',
+      'net': 'gb jp se uk ',
+      'org': 'ae',
+      'de': 'com '
+    },
+    // gorhill 2013-10-25: Using indexOf() instead Regexp(). Significant boost
+    // in both performance and memory footprint. No initialization required.
+    // http://jsperf.com/uri-js-sld-regex-vs-binary-search/4
+    // Following methods use lastIndexOf() rather than array.split() in order
+    // to avoid any memory allocations.
+    has: function(domain) {
+      var tldOffset = domain.lastIndexOf('.');
+      if (tldOffset <= 0 || tldOffset >= (domain.length-1)) {
+        return false;
+      }
+      var sldOffset = domain.lastIndexOf('.', tldOffset-1);
+      if (sldOffset <= 0 || sldOffset >= (tldOffset-1)) {
+        return false;
+      }
+      var sldList = SLD.list[domain.slice(tldOffset+1)];
+      if (!sldList) {
+        return false;
+      }
+      return sldList.indexOf(' ' + domain.slice(sldOffset+1, tldOffset) + ' ') >= 0;
+    },
+    is: function(domain) {
+      var tldOffset = domain.lastIndexOf('.');
+      if (tldOffset <= 0 || tldOffset >= (domain.length-1)) {
+        return false;
+      }
+      var sldOffset = domain.lastIndexOf('.', tldOffset-1);
+      if (sldOffset >= 0) {
+        return false;
+      }
+      var sldList = SLD.list[domain.slice(tldOffset+1)];
+      if (!sldList) {
+        return false;
+      }
+      return sldList.indexOf(' ' + domain.slice(0, tldOffset) + ' ') >= 0;
+    },
+    get: function(domain) {
+      var tldOffset = domain.lastIndexOf('.');
+      if (tldOffset <= 0 || tldOffset >= (domain.length-1)) {
+        return null;
+      }
+      var sldOffset = domain.lastIndexOf('.', tldOffset-1);
+      if (sldOffset <= 0 || sldOffset >= (tldOffset-1)) {
+        return null;
+      }
+      var sldList = SLD.list[domain.slice(tldOffset+1)];
+      if (!sldList) {
+        return null;
+      }
+      if (sldList.indexOf(' ' + domain.slice(sldOffset+1, tldOffset) + ' ') < 0) {
+        return null;
+      }
+      return domain.slice(sldOffset+1);
+    },
+    noConflict: function(){
+      if (root.SecondLevelDomains === this) {
+        root.SecondLevelDomains = _SecondLevelDomains;
+      }
+      return this;
+    }
+  };
+
+  return SLD;
+}));
+
+
+/***/ }),
+
+/***/ 4998:
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
+ * URI.js - Mutating URLs
+ *
+ * Version: 1.19.11
+ *
+ * Author: Rodney Rehm
+ * Web: http://medialize.github.io/URI.js/
+ *
+ * Licensed under
+ *   MIT License http://www.opensource.org/licenses/mit-license
+ *
+ */
+(function (root, factory) {
+  'use strict';
+  // https://github.com/umdjs/umd/blob/master/returnExports.js
+  if ( true && module.exports) {
+    // Node
+    module.exports = factory(__webpack_require__(3132), __webpack_require__(2251), __webpack_require__(6106));
+  } else if (true) {
+    // AMD. Register as an anonymous module.
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3132), __webpack_require__(2251), __webpack_require__(6106)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+		(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
+		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+}(this, function (punycode, IPv6, SLD, root) {
+  'use strict';
+  /*global location, escape, unescape */
+  // FIXME: v2.0.0 renamce non-camelCase properties to uppercase
+  /*jshint camelcase: false */
+
+  // save current URI variable, if any
+  var _URI = root && root.URI;
+
+  function URI(url, base) {
+    var _urlSupplied = arguments.length >= 1;
+    var _baseSupplied = arguments.length >= 2;
+
+    // Allow instantiation without the 'new' keyword
+    if (!(this instanceof URI)) {
+      if (_urlSupplied) {
+        if (_baseSupplied) {
+          return new URI(url, base);
+        }
+
+        return new URI(url);
+      }
+
+      return new URI();
+    }
+
+    if (url === undefined) {
+      if (_urlSupplied) {
+        throw new TypeError('undefined is not a valid argument for URI');
+      }
+
+      if (typeof location !== 'undefined') {
+        url = location.href + '';
+      } else {
+        url = '';
+      }
+    }
+
+    if (url === null) {
+      if (_urlSupplied) {
+        throw new TypeError('null is not a valid argument for URI');
+      }
+    }
+
+    this.href(url);
+
+    // resolve to base according to http://dvcs.w3.org/hg/url/raw-file/tip/Overview.html#constructor
+    if (base !== undefined) {
+      return this.absoluteTo(base);
+    }
+
+    return this;
+  }
+
+  function isInteger(value) {
+    return /^[0-9]+$/.test(value);
+  }
+
+  URI.version = '1.19.11';
+
+  var p = URI.prototype;
+  var hasOwn = Object.prototype.hasOwnProperty;
+
+  function escapeRegEx(string) {
+    // https://github.com/medialize/URI.js/commit/85ac21783c11f8ccab06106dba9735a31a86924d#commitcomment-821963
+    return string.replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1');
+  }
+
+  function getType(value) {
+    // IE8 doesn't return [Object Undefined] but [Object Object] for undefined value
+    if (value === undefined) {
+      return 'Undefined';
+    }
+
+    return String(Object.prototype.toString.call(value)).slice(8, -1);
+  }
+
+  function isArray(obj) {
+    return getType(obj) === 'Array';
+  }
+
+  function filterArrayValues(data, value) {
+    var lookup = {};
+    var i, length;
+
+    if (getType(value) === 'RegExp') {
+      lookup = null;
+    } else if (isArray(value)) {
+      for (i = 0, length = value.length; i < length; i++) {
+        lookup[value[i]] = true;
+      }
+    } else {
+      lookup[value] = true;
+    }
+
+    for (i = 0, length = data.length; i < length; i++) {
+      /*jshint laxbreak: true */
+      var _match = lookup && lookup[data[i]] !== undefined
+        || !lookup && value.test(data[i]);
+      /*jshint laxbreak: false */
+      if (_match) {
+        data.splice(i, 1);
+        length--;
+        i--;
+      }
+    }
+
+    return data;
+  }
+
+  function arrayContains(list, value) {
+    var i, length;
+
+    // value may be string, number, array, regexp
+    if (isArray(value)) {
+      // Note: this can be optimized to O(n) (instead of current O(m * n))
+      for (i = 0, length = value.length; i < length; i++) {
+        if (!arrayContains(list, value[i])) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    var _type = getType(value);
+    for (i = 0, length = list.length; i < length; i++) {
+      if (_type === 'RegExp') {
+        if (typeof list[i] === 'string' && list[i].match(value)) {
+          return true;
+        }
+      } else if (list[i] === value) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function arraysEqual(one, two) {
+    if (!isArray(one) || !isArray(two)) {
+      return false;
+    }
+
+    // arrays can't be equal if they have different amount of content
+    if (one.length !== two.length) {
+      return false;
+    }
+
+    one.sort();
+    two.sort();
+
+    for (var i = 0, l = one.length; i < l; i++) {
+      if (one[i] !== two[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function trimSlashes(text) {
+    var trim_expression = /^\/+|\/+$/g;
+    return text.replace(trim_expression, '');
+  }
+
+  URI._parts = function() {
+    return {
+      protocol: null,
+      username: null,
+      password: null,
+      hostname: null,
+      urn: null,
+      port: null,
+      path: null,
+      query: null,
+      fragment: null,
+      // state
+      preventInvalidHostname: URI.preventInvalidHostname,
+      duplicateQueryParameters: URI.duplicateQueryParameters,
+      escapeQuerySpace: URI.escapeQuerySpace
+    };
+  };
+  // state: throw on invalid hostname
+  // see https://github.com/medialize/URI.js/pull/345
+  // and https://github.com/medialize/URI.js/issues/354
+  URI.preventInvalidHostname = false;
+  // state: allow duplicate query parameters (a=1&a=1)
+  URI.duplicateQueryParameters = false;
+  // state: replaces + with %20 (space in query strings)
+  URI.escapeQuerySpace = true;
+  // static properties
+  URI.protocol_expression = /^[a-z][a-z0-9.+-]*$/i;
+  URI.idn_expression = /[^a-z0-9\._-]/i;
+  URI.punycode_expression = /(xn--)/i;
+  // well, 333.444.555.666 matches, but it sure ain't no IPv4 - do we care?
+  URI.ip4_expression = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  // credits to Rich Brown
+  // source: http://forums.intermapper.com/viewtopic.php?p=1096#1096
+  // specification: http://www.ietf.org/rfc/rfc4291.txt
+  URI.ip6_expression = /^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/;
+  // expression used is "gruber revised" (@gruber v2) determined to be the
+  // best solution in a regex-golf we did a couple of ages ago at
+  // * http://mathiasbynens.be/demo/url-regex
+  // * http://rodneyrehm.de/t/url-regex.html
+  URI.find_uri_expression = /\b((?:[a-z][\w-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
+  URI.findUri = {
+    // valid "scheme://" or "www."
+    start: /\b(?:([a-z][a-z0-9.+-]*:\/\/)|www\.)/gi,
+    // everything up to the next whitespace
+    end: /[\s\r\n]|$/,
+    // trim trailing punctuation captured by end RegExp
+    trim: /[`!()\[\]{};:'".,<>?«»“”„‘’]+$/,
+    // balanced parens inclusion (), [], {}, <>
+    parens: /(\([^\)]*\)|\[[^\]]*\]|\{[^}]*\}|<[^>]*>)/g,
+  };
+  URI.leading_whitespace_expression = /^[\x00-\x20\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/
+  // https://infra.spec.whatwg.org/#ascii-tab-or-newline
+  URI.ascii_tab_whitespace = /[\u0009\u000A\u000D]+/g
+  // http://www.iana.org/assignments/uri-schemes.html
+  // http://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers#Well-known_ports
+  URI.defaultPorts = {
+    http: '80',
+    https: '443',
+    ftp: '21',
+    gopher: '70',
+    ws: '80',
+    wss: '443'
+  };
+  // list of protocols which always require a hostname
+  URI.hostProtocols = [
+    'http',
+    'https'
+  ];
+
+  // allowed hostname characters according to RFC 3986
+  // ALPHA DIGIT "-" "." "_" "~" "!" "$" "&" "'" "(" ")" "*" "+" "," ";" "=" %encoded
+  // I've never seen a (non-IDN) hostname other than: ALPHA DIGIT . - _
+  URI.invalid_hostname_characters = /[^a-zA-Z0-9\.\-:_]/;
+  // map DOM Elements to their URI attribute
+  URI.domAttributes = {
+    'a': 'href',
+    'blockquote': 'cite',
+    'link': 'href',
+    'base': 'href',
+    'script': 'src',
+    'form': 'action',
+    'img': 'src',
+    'area': 'href',
+    'iframe': 'src',
+    'embed': 'src',
+    'source': 'src',
+    'track': 'src',
+    'input': 'src', // but only if type="image"
+    'audio': 'src',
+    'video': 'src'
+  };
+  URI.getDomAttribute = function(node) {
+    if (!node || !node.nodeName) {
+      return undefined;
+    }
+
+    var nodeName = node.nodeName.toLowerCase();
+    // <input> should only expose src for type="image"
+    if (nodeName === 'input' && node.type !== 'image') {
+      return undefined;
+    }
+
+    return URI.domAttributes[nodeName];
+  };
+
+  function escapeForDumbFirefox36(value) {
+    // https://github.com/medialize/URI.js/issues/91
+    return escape(value);
+  }
+
+  // encoding / decoding according to RFC3986
+  function strictEncodeURIComponent(string) {
+    // see https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/encodeURIComponent
+    return encodeURIComponent(string)
+      .replace(/[!'()*]/g, escapeForDumbFirefox36)
+      .replace(/\*/g, '%2A');
+  }
+  URI.encode = strictEncodeURIComponent;
+  URI.decode = decodeURIComponent;
+  URI.iso8859 = function() {
+    URI.encode = escape;
+    URI.decode = unescape;
+  };
+  URI.unicode = function() {
+    URI.encode = strictEncodeURIComponent;
+    URI.decode = decodeURIComponent;
+  };
+  URI.characters = {
+    pathname: {
+      encode: {
+        // RFC3986 2.1: For consistency, URI producers and normalizers should
+        // use uppercase hexadecimal digits for all percent-encodings.
+        expression: /%(24|26|2B|2C|3B|3D|3A|40)/ig,
+        map: {
+          // -._~!'()*
+          '%24': '$',
+          '%26': '&',
+          '%2B': '+',
+          '%2C': ',',
+          '%3B': ';',
+          '%3D': '=',
+          '%3A': ':',
+          '%40': '@'
+        }
+      },
+      decode: {
+        expression: /[\/\?#]/g,
+        map: {
+          '/': '%2F',
+          '?': '%3F',
+          '#': '%23'
+        }
+      }
+    },
+    reserved: {
+      encode: {
+        // RFC3986 2.1: For consistency, URI producers and normalizers should
+        // use uppercase hexadecimal digits for all percent-encodings.
+        expression: /%(21|23|24|26|27|28|29|2A|2B|2C|2F|3A|3B|3D|3F|40|5B|5D)/ig,
+        map: {
+          // gen-delims
+          '%3A': ':',
+          '%2F': '/',
+          '%3F': '?',
+          '%23': '#',
+          '%5B': '[',
+          '%5D': ']',
+          '%40': '@',
+          // sub-delims
+          '%21': '!',
+          '%24': '$',
+          '%26': '&',
+          '%27': '\'',
+          '%28': '(',
+          '%29': ')',
+          '%2A': '*',
+          '%2B': '+',
+          '%2C': ',',
+          '%3B': ';',
+          '%3D': '='
+        }
+      }
+    },
+    urnpath: {
+      // The characters under `encode` are the characters called out by RFC 2141 as being acceptable
+      // for usage in a URN. RFC2141 also calls out "-", ".", and "_" as acceptable characters, but
+      // these aren't encoded by encodeURIComponent, so we don't have to call them out here. Also
+      // note that the colon character is not featured in the encoding map; this is because URI.js
+      // gives the colons in URNs semantic meaning as the delimiters of path segements, and so it
+      // should not appear unencoded in a segment itself.
+      // See also the note above about RFC3986 and capitalalized hex digits.
+      encode: {
+        expression: /%(21|24|27|28|29|2A|2B|2C|3B|3D|40)/ig,
+        map: {
+          '%21': '!',
+          '%24': '$',
+          '%27': '\'',
+          '%28': '(',
+          '%29': ')',
+          '%2A': '*',
+          '%2B': '+',
+          '%2C': ',',
+          '%3B': ';',
+          '%3D': '=',
+          '%40': '@'
+        }
+      },
+      // These characters are the characters called out by RFC2141 as "reserved" characters that
+      // should never appear in a URN, plus the colon character (see note above).
+      decode: {
+        expression: /[\/\?#:]/g,
+        map: {
+          '/': '%2F',
+          '?': '%3F',
+          '#': '%23',
+          ':': '%3A'
+        }
+      }
+    }
+  };
+  URI.encodeQuery = function(string, escapeQuerySpace) {
+    var escaped = URI.encode(string + '');
+    if (escapeQuerySpace === undefined) {
+      escapeQuerySpace = URI.escapeQuerySpace;
+    }
+
+    return escapeQuerySpace ? escaped.replace(/%20/g, '+') : escaped;
+  };
+  URI.decodeQuery = function(string, escapeQuerySpace) {
+    string += '';
+    if (escapeQuerySpace === undefined) {
+      escapeQuerySpace = URI.escapeQuerySpace;
+    }
+
+    try {
+      return URI.decode(escapeQuerySpace ? string.replace(/\+/g, '%20') : string);
+    } catch(e) {
+      // we're not going to mess with weird encodings,
+      // give up and return the undecoded original string
+      // see https://github.com/medialize/URI.js/issues/87
+      // see https://github.com/medialize/URI.js/issues/92
+      return string;
+    }
+  };
+  // generate encode/decode path functions
+  var _parts = {'encode':'encode', 'decode':'decode'};
+  var _part;
+  var generateAccessor = function(_group, _part) {
+    return function(string) {
+      try {
+        return URI[_part](string + '').replace(URI.characters[_group][_part].expression, function(c) {
+          return URI.characters[_group][_part].map[c];
+        });
+      } catch (e) {
+        // we're not going to mess with weird encodings,
+        // give up and return the undecoded original string
+        // see https://github.com/medialize/URI.js/issues/87
+        // see https://github.com/medialize/URI.js/issues/92
+        return string;
+      }
+    };
+  };
+
+  for (_part in _parts) {
+    URI[_part + 'PathSegment'] = generateAccessor('pathname', _parts[_part]);
+    URI[_part + 'UrnPathSegment'] = generateAccessor('urnpath', _parts[_part]);
+  }
+
+  var generateSegmentedPathFunction = function(_sep, _codingFuncName, _innerCodingFuncName) {
+    return function(string) {
+      // Why pass in names of functions, rather than the function objects themselves? The
+      // definitions of some functions (but in particular, URI.decode) will occasionally change due
+      // to URI.js having ISO8859 and Unicode modes. Passing in the name and getting it will ensure
+      // that the functions we use here are "fresh".
+      var actualCodingFunc;
+      if (!_innerCodingFuncName) {
+        actualCodingFunc = URI[_codingFuncName];
+      } else {
+        actualCodingFunc = function(string) {
+          return URI[_codingFuncName](URI[_innerCodingFuncName](string));
+        };
+      }
+
+      var segments = (string + '').split(_sep);
+
+      for (var i = 0, length = segments.length; i < length; i++) {
+        segments[i] = actualCodingFunc(segments[i]);
+      }
+
+      return segments.join(_sep);
+    };
+  };
+
+  // This takes place outside the above loop because we don't want, e.g., encodeUrnPath functions.
+  URI.decodePath = generateSegmentedPathFunction('/', 'decodePathSegment');
+  URI.decodeUrnPath = generateSegmentedPathFunction(':', 'decodeUrnPathSegment');
+  URI.recodePath = generateSegmentedPathFunction('/', 'encodePathSegment', 'decode');
+  URI.recodeUrnPath = generateSegmentedPathFunction(':', 'encodeUrnPathSegment', 'decode');
+
+  URI.encodeReserved = generateAccessor('reserved', 'encode');
+
+  URI.parse = function(string, parts) {
+    var pos;
+    if (!parts) {
+      parts = {
+        preventInvalidHostname: URI.preventInvalidHostname
+      };
+    }
+
+    string = string.replace(URI.leading_whitespace_expression, '')
+    // https://infra.spec.whatwg.org/#ascii-tab-or-newline
+    string = string.replace(URI.ascii_tab_whitespace, '')
+
+    // [protocol"://"[username[":"password]"@"]hostname[":"port]"/"?][path]["?"querystring]["#"fragment]
+
+    // extract fragment
+    pos = string.indexOf('#');
+    if (pos > -1) {
+      // escaping?
+      parts.fragment = string.substring(pos + 1) || null;
+      string = string.substring(0, pos);
+    }
+
+    // extract query
+    pos = string.indexOf('?');
+    if (pos > -1) {
+      // escaping?
+      parts.query = string.substring(pos + 1) || null;
+      string = string.substring(0, pos);
+    }
+
+    // slashes and backslashes have lost all meaning for the web protocols (https, http, wss, ws)
+    string = string.replace(/^(https?|ftp|wss?)?:+[/\\]*/i, '$1://');
+    // slashes and backslashes have lost all meaning for scheme relative URLs
+    string = string.replace(/^[/\\]{2,}/i, '//');
+
+    // extract protocol
+    if (string.substring(0, 2) === '//') {
+      // relative-scheme
+      parts.protocol = null;
+      string = string.substring(2);
+      // extract "user:pass@host:port"
+      string = URI.parseAuthority(string, parts);
+    } else {
+      pos = string.indexOf(':');
+      if (pos > -1) {
+        parts.protocol = string.substring(0, pos) || null;
+        if (parts.protocol && !parts.protocol.match(URI.protocol_expression)) {
+          // : may be within the path
+          parts.protocol = undefined;
+        } else if (string.substring(pos + 1, pos + 3).replace(/\\/g, '/') === '//') {
+          string = string.substring(pos + 3);
+
+          // extract "user:pass@host:port"
+          string = URI.parseAuthority(string, parts);
+        } else {
+          string = string.substring(pos + 1);
+          parts.urn = true;
+        }
+      }
+    }
+
+    // what's left must be the path
+    parts.path = string;
+
+    // and we're done
+    return parts;
+  };
+  URI.parseHost = function(string, parts) {
+    if (!string) {
+      string = '';
+    }
+
+    // Copy chrome, IE, opera backslash-handling behavior.
+    // Back slashes before the query string get converted to forward slashes
+    // See: https://github.com/joyent/node/blob/386fd24f49b0e9d1a8a076592a404168faeecc34/lib/url.js#L115-L124
+    // See: https://code.google.com/p/chromium/issues/detail?id=25916
+    // https://github.com/medialize/URI.js/pull/233
+    string = string.replace(/\\/g, '/');
+
+    // extract host:port
+    var pos = string.indexOf('/');
+    var bracketPos;
+    var t;
+
+    if (pos === -1) {
+      pos = string.length;
+    }
+
+    if (string.charAt(0) === '[') {
+      // IPv6 host - http://tools.ietf.org/html/draft-ietf-6man-text-addr-representation-04#section-6
+      // I claim most client software breaks on IPv6 anyways. To simplify things, URI only accepts
+      // IPv6+port in the format [2001:db8::1]:80 (for the time being)
+      bracketPos = string.indexOf(']');
+      parts.hostname = string.substring(1, bracketPos) || null;
+      parts.port = string.substring(bracketPos + 2, pos) || null;
+      if (parts.port === '/') {
+        parts.port = null;
+      }
+    } else {
+      var firstColon = string.indexOf(':');
+      var firstSlash = string.indexOf('/');
+      var nextColon = string.indexOf(':', firstColon + 1);
+      if (nextColon !== -1 && (firstSlash === -1 || nextColon < firstSlash)) {
+        // IPv6 host contains multiple colons - but no port
+        // this notation is actually not allowed by RFC 3986, but we're a liberal parser
+        parts.hostname = string.substring(0, pos) || null;
+        parts.port = null;
+      } else {
+        t = string.substring(0, pos).split(':');
+        parts.hostname = t[0] || null;
+        parts.port = t[1] || null;
+      }
+    }
+
+    if (parts.hostname && string.substring(pos).charAt(0) !== '/') {
+      pos++;
+      string = '/' + string;
+    }
+
+    if (parts.preventInvalidHostname) {
+      URI.ensureValidHostname(parts.hostname, parts.protocol);
+    }
+
+    if (parts.port) {
+      URI.ensureValidPort(parts.port);
+    }
+
+    return string.substring(pos) || '/';
+  };
+  URI.parseAuthority = function(string, parts) {
+    string = URI.parseUserinfo(string, parts);
+    return URI.parseHost(string, parts);
+  };
+  URI.parseUserinfo = function(string, parts) {
+    // extract username:password
+    var _string = string
+    var firstBackSlash = string.indexOf('\\');
+    if (firstBackSlash !== -1) {
+      string = string.replace(/\\/g, '/')
+    }
+    var firstSlash = string.indexOf('/');
+    var pos = string.lastIndexOf('@', firstSlash > -1 ? firstSlash : string.length - 1);
+    var t;
+
+    // authority@ must come before /path or \path
+    if (pos > -1 && (firstSlash === -1 || pos < firstSlash)) {
+      t = string.substring(0, pos).split(':');
+      parts.username = t[0] ? URI.decode(t[0]) : null;
+      t.shift();
+      parts.password = t[0] ? URI.decode(t.join(':')) : null;
+      string = _string.substring(pos + 1);
+    } else {
+      parts.username = null;
+      parts.password = null;
+    }
+
+    return string;
+  };
+  URI.parseQuery = function(string, escapeQuerySpace) {
+    if (!string) {
+      return {};
+    }
+
+    // throw out the funky business - "?"[name"="value"&"]+
+    string = string.replace(/&+/g, '&').replace(/^\?*&*|&+$/g, '');
+
+    if (!string) {
+      return {};
+    }
+
+    var items = {};
+    var splits = string.split('&');
+    var length = splits.length;
+    var v, name, value;
+
+    for (var i = 0; i < length; i++) {
+      v = splits[i].split('=');
+      name = URI.decodeQuery(v.shift(), escapeQuerySpace);
+      // no "=" is null according to http://dvcs.w3.org/hg/url/raw-file/tip/Overview.html#collect-url-parameters
+      value = v.length ? URI.decodeQuery(v.join('='), escapeQuerySpace) : null;
+
+      if (name === '__proto__') {
+        // ignore attempt at exploiting JavaScript internals
+        continue;
+      } else if (hasOwn.call(items, name)) {
+        if (typeof items[name] === 'string' || items[name] === null) {
+          items[name] = [items[name]];
+        }
+
+        items[name].push(value);
+      } else {
+        items[name] = value;
+      }
+    }
+
+    return items;
+  };
+
+  URI.build = function(parts) {
+    var t = '';
+    var requireAbsolutePath = false
+
+    if (parts.protocol) {
+      t += parts.protocol + ':';
+    }
+
+    if (!parts.urn && (t || parts.hostname)) {
+      t += '//';
+      requireAbsolutePath = true
+    }
+
+    t += (URI.buildAuthority(parts) || '');
+
+    if (typeof parts.path === 'string') {
+      if (parts.path.charAt(0) !== '/' && requireAbsolutePath) {
+        t += '/';
+      }
+
+      t += parts.path;
+    }
+
+    if (typeof parts.query === 'string' && parts.query) {
+      t += '?' + parts.query;
+    }
+
+    if (typeof parts.fragment === 'string' && parts.fragment) {
+      t += '#' + parts.fragment;
+    }
+    return t;
+  };
+  URI.buildHost = function(parts) {
+    var t = '';
+
+    if (!parts.hostname) {
+      return '';
+    } else if (URI.ip6_expression.test(parts.hostname)) {
+      t += '[' + parts.hostname + ']';
+    } else {
+      t += parts.hostname;
+    }
+
+    if (parts.port) {
+      t += ':' + parts.port;
+    }
+
+    return t;
+  };
+  URI.buildAuthority = function(parts) {
+    return URI.buildUserinfo(parts) + URI.buildHost(parts);
+  };
+  URI.buildUserinfo = function(parts) {
+    var t = '';
+
+    if (parts.username) {
+      t += URI.encode(parts.username);
+    }
+
+    if (parts.password) {
+      t += ':' + URI.encode(parts.password);
+    }
+
+    if (t) {
+      t += '@';
+    }
+
+    return t;
+  };
+  URI.buildQuery = function(data, duplicateQueryParameters, escapeQuerySpace) {
+    // according to http://tools.ietf.org/html/rfc3986 or http://labs.apache.org/webarch/uri/rfc/rfc3986.html
+    // being »-._~!$&'()*+,;=:@/?« %HEX and alnum are allowed
+    // the RFC explicitly states ?/foo being a valid use case, no mention of parameter syntax!
+    // URI.js treats the query string as being application/x-www-form-urlencoded
+    // see http://www.w3.org/TR/REC-html40/interact/forms.html#form-content-type
+
+    var t = '';
+    var unique, key, i, length;
+    for (key in data) {
+      if (key === '__proto__') {
+        // ignore attempt at exploiting JavaScript internals
+        continue;
+      } else if (hasOwn.call(data, key)) {
+        if (isArray(data[key])) {
+          unique = {};
+          for (i = 0, length = data[key].length; i < length; i++) {
+            if (data[key][i] !== undefined && unique[data[key][i] + ''] === undefined) {
+              t += '&' + URI.buildQueryParameter(key, data[key][i], escapeQuerySpace);
+              if (duplicateQueryParameters !== true) {
+                unique[data[key][i] + ''] = true;
+              }
+            }
+          }
+        } else if (data[key] !== undefined) {
+          t += '&' + URI.buildQueryParameter(key, data[key], escapeQuerySpace);
+        }
+      }
+    }
+
+    return t.substring(1);
+  };
+  URI.buildQueryParameter = function(name, value, escapeQuerySpace) {
+    // http://www.w3.org/TR/REC-html40/interact/forms.html#form-content-type -- application/x-www-form-urlencoded
+    // don't append "=" for null values, according to http://dvcs.w3.org/hg/url/raw-file/tip/Overview.html#url-parameter-serialization
+    return URI.encodeQuery(name, escapeQuerySpace) + (value !== null ? '=' + URI.encodeQuery(value, escapeQuerySpace) : '');
+  };
+
+  URI.addQuery = function(data, name, value) {
+    if (typeof name === 'object') {
+      for (var key in name) {
+        if (hasOwn.call(name, key)) {
+          URI.addQuery(data, key, name[key]);
+        }
+      }
+    } else if (typeof name === 'string') {
+      if (data[name] === undefined) {
+        data[name] = value;
+        return;
+      } else if (typeof data[name] === 'string') {
+        data[name] = [data[name]];
+      }
+
+      if (!isArray(value)) {
+        value = [value];
+      }
+
+      data[name] = (data[name] || []).concat(value);
+    } else {
+      throw new TypeError('URI.addQuery() accepts an object, string as the name parameter');
+    }
+  };
+
+  URI.setQuery = function(data, name, value) {
+    if (typeof name === 'object') {
+      for (var key in name) {
+        if (hasOwn.call(name, key)) {
+          URI.setQuery(data, key, name[key]);
+        }
+      }
+    } else if (typeof name === 'string') {
+      data[name] = value === undefined ? null : value;
+    } else {
+      throw new TypeError('URI.setQuery() accepts an object, string as the name parameter');
+    }
+  };
+
+  URI.removeQuery = function(data, name, value) {
+    var i, length, key;
+
+    if (isArray(name)) {
+      for (i = 0, length = name.length; i < length; i++) {
+        data[name[i]] = undefined;
+      }
+    } else if (getType(name) === 'RegExp') {
+      for (key in data) {
+        if (name.test(key)) {
+          data[key] = undefined;
+        }
+      }
+    } else if (typeof name === 'object') {
+      for (key in name) {
+        if (hasOwn.call(name, key)) {
+          URI.removeQuery(data, key, name[key]);
+        }
+      }
+    } else if (typeof name === 'string') {
+      if (value !== undefined) {
+        if (getType(value) === 'RegExp') {
+          if (!isArray(data[name]) && value.test(data[name])) {
+            data[name] = undefined;
+          } else {
+            data[name] = filterArrayValues(data[name], value);
+          }
+        } else if (data[name] === String(value) && (!isArray(value) || value.length === 1)) {
+          data[name] = undefined;
+        } else if (isArray(data[name])) {
+          data[name] = filterArrayValues(data[name], value);
+        }
+      } else {
+        data[name] = undefined;
+      }
+    } else {
+      throw new TypeError('URI.removeQuery() accepts an object, string, RegExp as the first parameter');
+    }
+  };
+  URI.hasQuery = function(data, name, value, withinArray) {
+    switch (getType(name)) {
+      case 'String':
+        // Nothing to do here
+        break;
+
+      case 'RegExp':
+        for (var key in data) {
+          if (hasOwn.call(data, key)) {
+            if (name.test(key) && (value === undefined || URI.hasQuery(data, key, value))) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+
+      case 'Object':
+        for (var _key in name) {
+          if (hasOwn.call(name, _key)) {
+            if (!URI.hasQuery(data, _key, name[_key])) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+
+      default:
+        throw new TypeError('URI.hasQuery() accepts a string, regular expression or object as the name parameter');
+    }
+
+    switch (getType(value)) {
+      case 'Undefined':
+        // true if exists (but may be empty)
+        return name in data; // data[name] !== undefined;
+
+      case 'Boolean':
+        // true if exists and non-empty
+        var _booly = Boolean(isArray(data[name]) ? data[name].length : data[name]);
+        return value === _booly;
+
+      case 'Function':
+        // allow complex comparison
+        return !!value(data[name], name, data);
+
+      case 'Array':
+        if (!isArray(data[name])) {
+          return false;
+        }
+
+        var op = withinArray ? arrayContains : arraysEqual;
+        return op(data[name], value);
+
+      case 'RegExp':
+        if (!isArray(data[name])) {
+          return Boolean(data[name] && data[name].match(value));
+        }
+
+        if (!withinArray) {
+          return false;
+        }
+
+        return arrayContains(data[name], value);
+
+      case 'Number':
+        value = String(value);
+        /* falls through */
+      case 'String':
+        if (!isArray(data[name])) {
+          return data[name] === value;
+        }
+
+        if (!withinArray) {
+          return false;
+        }
+
+        return arrayContains(data[name], value);
+
+      default:
+        throw new TypeError('URI.hasQuery() accepts undefined, boolean, string, number, RegExp, Function as the value parameter');
+    }
+  };
+
+
+  URI.joinPaths = function() {
+    var input = [];
+    var segments = [];
+    var nonEmptySegments = 0;
+
+    for (var i = 0; i < arguments.length; i++) {
+      var url = new URI(arguments[i]);
+      input.push(url);
+      var _segments = url.segment();
+      for (var s = 0; s < _segments.length; s++) {
+        if (typeof _segments[s] === 'string') {
+          segments.push(_segments[s]);
+        }
+
+        if (_segments[s]) {
+          nonEmptySegments++;
+        }
+      }
+    }
+
+    if (!segments.length || !nonEmptySegments) {
+      return new URI('');
+    }
+
+    var uri = new URI('').segment(segments);
+
+    if (input[0].path() === '' || input[0].path().slice(0, 1) === '/') {
+      uri.path('/' + uri.path());
+    }
+
+    return uri.normalize();
+  };
+
+  URI.commonPath = function(one, two) {
+    var length = Math.min(one.length, two.length);
+    var pos;
+
+    // find first non-matching character
+    for (pos = 0; pos < length; pos++) {
+      if (one.charAt(pos) !== two.charAt(pos)) {
+        pos--;
+        break;
+      }
+    }
+
+    if (pos < 1) {
+      return one.charAt(0) === two.charAt(0) && one.charAt(0) === '/' ? '/' : '';
+    }
+
+    // revert to last /
+    if (one.charAt(pos) !== '/' || two.charAt(pos) !== '/') {
+      pos = one.substring(0, pos).lastIndexOf('/');
+    }
+
+    return one.substring(0, pos + 1);
+  };
+
+  URI.withinString = function(string, callback, options) {
+    options || (options = {});
+    var _start = options.start || URI.findUri.start;
+    var _end = options.end || URI.findUri.end;
+    var _trim = options.trim || URI.findUri.trim;
+    var _parens = options.parens || URI.findUri.parens;
+    var _attributeOpen = /[a-z0-9-]=["']?$/i;
+
+    _start.lastIndex = 0;
+    while (true) {
+      var match = _start.exec(string);
+      if (!match) {
+        break;
+      }
+
+      var start = match.index;
+      if (options.ignoreHtml) {
+        // attribut(e=["']?$)
+        var attributeOpen = string.slice(Math.max(start - 3, 0), start);
+        if (attributeOpen && _attributeOpen.test(attributeOpen)) {
+          continue;
+        }
+      }
+
+      var end = start + string.slice(start).search(_end);
+      var slice = string.slice(start, end);
+      // make sure we include well balanced parens
+      var parensEnd = -1;
+      while (true) {
+        var parensMatch = _parens.exec(slice);
+        if (!parensMatch) {
+          break;
+        }
+
+        var parensMatchEnd = parensMatch.index + parensMatch[0].length;
+        parensEnd = Math.max(parensEnd, parensMatchEnd);
+      }
+
+      if (parensEnd > -1) {
+        slice = slice.slice(0, parensEnd) + slice.slice(parensEnd).replace(_trim, '');
+      } else {
+        slice = slice.replace(_trim, '');
+      }
+
+      if (slice.length <= match[0].length) {
+        // the extract only contains the starting marker of a URI,
+        // e.g. "www" or "http://"
+        continue;
+      }
+
+      if (options.ignore && options.ignore.test(slice)) {
+        continue;
+      }
+
+      end = start + slice.length;
+      var result = callback(slice, start, end, string);
+      if (result === undefined) {
+        _start.lastIndex = end;
+        continue;
+      }
+
+      result = String(result);
+      string = string.slice(0, start) + result + string.slice(end);
+      _start.lastIndex = start + result.length;
+    }
+
+    _start.lastIndex = 0;
+    return string;
+  };
+
+  URI.ensureValidHostname = function(v, protocol) {
+    // Theoretically URIs allow percent-encoding in Hostnames (according to RFC 3986)
+    // they are not part of DNS and therefore ignored by URI.js
+
+    var hasHostname = !!v; // not null and not an empty string
+    var hasProtocol = !!protocol;
+    var rejectEmptyHostname = false;
+
+    if (hasProtocol) {
+      rejectEmptyHostname = arrayContains(URI.hostProtocols, protocol);
+    }
+
+    if (rejectEmptyHostname && !hasHostname) {
+      throw new TypeError('Hostname cannot be empty, if protocol is ' + protocol);
+    } else if (v && v.match(URI.invalid_hostname_characters)) {
+      // test punycode
+      if (!punycode) {
+        throw new TypeError('Hostname "' + v + '" contains characters other than [A-Z0-9.-:_] and Punycode.js is not available');
+      }
+      if (punycode.toASCII(v).match(URI.invalid_hostname_characters)) {
+        throw new TypeError('Hostname "' + v + '" contains characters other than [A-Z0-9.-:_]');
+      }
+    }
+  };
+
+  URI.ensureValidPort = function (v) {
+    if (!v) {
+      return;
+    }
+
+    var port = Number(v);
+    if (isInteger(port) && (port > 0) && (port < 65536)) {
+      return;
+    }
+
+    throw new TypeError('Port "' + v + '" is not a valid port');
+  };
+
+  // noConflict
+  URI.noConflict = function(removeAll) {
+    if (removeAll) {
+      var unconflicted = {
+        URI: this.noConflict()
+      };
+
+      if (root.URITemplate && typeof root.URITemplate.noConflict === 'function') {
+        unconflicted.URITemplate = root.URITemplate.noConflict();
+      }
+
+      if (root.IPv6 && typeof root.IPv6.noConflict === 'function') {
+        unconflicted.IPv6 = root.IPv6.noConflict();
+      }
+
+      if (root.SecondLevelDomains && typeof root.SecondLevelDomains.noConflict === 'function') {
+        unconflicted.SecondLevelDomains = root.SecondLevelDomains.noConflict();
+      }
+
+      return unconflicted;
+    } else if (root.URI === this) {
+      root.URI = _URI;
+    }
+
+    return this;
+  };
+
+  p.build = function(deferBuild) {
+    if (deferBuild === true) {
+      this._deferred_build = true;
+    } else if (deferBuild === undefined || this._deferred_build) {
+      this._string = URI.build(this._parts);
+      this._deferred_build = false;
+    }
+
+    return this;
+  };
+
+  p.clone = function() {
+    return new URI(this);
+  };
+
+  p.valueOf = p.toString = function() {
+    return this.build(false)._string;
+  };
+
+
+  function generateSimpleAccessor(_part){
+    return function(v, build) {
+      if (v === undefined) {
+        return this._parts[_part] || '';
+      } else {
+        this._parts[_part] = v || null;
+        this.build(!build);
+        return this;
+      }
+    };
+  }
+
+  function generatePrefixAccessor(_part, _key){
+    return function(v, build) {
+      if (v === undefined) {
+        return this._parts[_part] || '';
+      } else {
+        if (v !== null) {
+          v = v + '';
+          if (v.charAt(0) === _key) {
+            v = v.substring(1);
+          }
+        }
+
+        this._parts[_part] = v;
+        this.build(!build);
+        return this;
+      }
+    };
+  }
+
+  p.protocol = generateSimpleAccessor('protocol');
+  p.username = generateSimpleAccessor('username');
+  p.password = generateSimpleAccessor('password');
+  p.hostname = generateSimpleAccessor('hostname');
+  p.port = generateSimpleAccessor('port');
+  p.query = generatePrefixAccessor('query', '?');
+  p.fragment = generatePrefixAccessor('fragment', '#');
+
+  p.search = function(v, build) {
+    var t = this.query(v, build);
+    return typeof t === 'string' && t.length ? ('?' + t) : t;
+  };
+  p.hash = function(v, build) {
+    var t = this.fragment(v, build);
+    return typeof t === 'string' && t.length ? ('#' + t) : t;
+  };
+
+  p.pathname = function(v, build) {
+    if (v === undefined || v === true) {
+      var res = this._parts.path || (this._parts.hostname ? '/' : '');
+      return v ? (this._parts.urn ? URI.decodeUrnPath : URI.decodePath)(res) : res;
+    } else {
+      if (this._parts.urn) {
+        this._parts.path = v ? URI.recodeUrnPath(v) : '';
+      } else {
+        this._parts.path = v ? URI.recodePath(v) : '/';
+      }
+      this.build(!build);
+      return this;
+    }
+  };
+  p.path = p.pathname;
+  p.href = function(href, build) {
+    var key;
+
+    if (href === undefined) {
+      return this.toString();
+    }
+
+    this._string = '';
+    this._parts = URI._parts();
+
+    var _URI = href instanceof URI;
+    var _object = typeof href === 'object' && (href.hostname || href.path || href.pathname);
+    if (href.nodeName) {
+      var attribute = URI.getDomAttribute(href);
+      href = href[attribute] || '';
+      _object = false;
+    }
+
+    // window.location is reported to be an object, but it's not the sort
+    // of object we're looking for:
+    // * location.protocol ends with a colon
+    // * location.query != object.search
+    // * location.hash != object.fragment
+    // simply serializing the unknown object should do the trick
+    // (for location, not for everything...)
+    if (!_URI && _object && href.pathname !== undefined) {
+      href = href.toString();
+    }
+
+    if (typeof href === 'string' || href instanceof String) {
+      this._parts = URI.parse(String(href), this._parts);
+    } else if (_URI || _object) {
+      var src = _URI ? href._parts : href;
+      for (key in src) {
+        if (key === 'query') { continue; }
+        if (hasOwn.call(this._parts, key)) {
+          this._parts[key] = src[key];
+        }
+      }
+      if (src.query) {
+        this.query(src.query, false);
+      }
+    } else {
+      throw new TypeError('invalid input');
+    }
+
+    this.build(!build);
+    return this;
+  };
+
+  // identification accessors
+  p.is = function(what) {
+    var ip = false;
+    var ip4 = false;
+    var ip6 = false;
+    var name = false;
+    var sld = false;
+    var idn = false;
+    var punycode = false;
+    var relative = !this._parts.urn;
+
+    if (this._parts.hostname) {
+      relative = false;
+      ip4 = URI.ip4_expression.test(this._parts.hostname);
+      ip6 = URI.ip6_expression.test(this._parts.hostname);
+      ip = ip4 || ip6;
+      name = !ip;
+      sld = name && SLD && SLD.has(this._parts.hostname);
+      idn = name && URI.idn_expression.test(this._parts.hostname);
+      punycode = name && URI.punycode_expression.test(this._parts.hostname);
+    }
+
+    switch (what.toLowerCase()) {
+      case 'relative':
+        return relative;
+
+      case 'absolute':
+        return !relative;
+
+      // hostname identification
+      case 'domain':
+      case 'name':
+        return name;
+
+      case 'sld':
+        return sld;
+
+      case 'ip':
+        return ip;
+
+      case 'ip4':
+      case 'ipv4':
+      case 'inet4':
+        return ip4;
+
+      case 'ip6':
+      case 'ipv6':
+      case 'inet6':
+        return ip6;
+
+      case 'idn':
+        return idn;
+
+      case 'url':
+        return !this._parts.urn;
+
+      case 'urn':
+        return !!this._parts.urn;
+
+      case 'punycode':
+        return punycode;
+    }
+
+    return null;
+  };
+
+  // component specific input validation
+  var _protocol = p.protocol;
+  var _port = p.port;
+  var _hostname = p.hostname;
+
+  p.protocol = function(v, build) {
+    if (v) {
+      // accept trailing ://
+      v = v.replace(/:(\/\/)?$/, '');
+
+      if (!v.match(URI.protocol_expression)) {
+        throw new TypeError('Protocol "' + v + '" contains characters other than [A-Z0-9.+-] or doesn\'t start with [A-Z]');
+      }
+    }
+
+    return _protocol.call(this, v, build);
+  };
+  p.scheme = p.protocol;
+  p.port = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v !== undefined) {
+      if (v === 0) {
+        v = null;
+      }
+
+      if (v) {
+        v += '';
+        if (v.charAt(0) === ':') {
+          v = v.substring(1);
+        }
+
+        URI.ensureValidPort(v);
+      }
+    }
+    return _port.call(this, v, build);
+  };
+  p.hostname = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v !== undefined) {
+      var x = { preventInvalidHostname: this._parts.preventInvalidHostname };
+      var res = URI.parseHost(v, x);
+      if (res !== '/') {
+        throw new TypeError('Hostname "' + v + '" contains characters other than [A-Z0-9.-]');
+      }
+
+      v = x.hostname;
+      if (this._parts.preventInvalidHostname) {
+        URI.ensureValidHostname(v, this._parts.protocol);
+      }
+    }
+
+    return _hostname.call(this, v, build);
+  };
+
+  // compound accessors
+  p.origin = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined) {
+      var protocol = this.protocol();
+      var authority = this.authority();
+      if (!authority) {
+        return '';
+      }
+
+      return (protocol ? protocol + '://' : '') + this.authority();
+    } else {
+      var origin = URI(v);
+      this
+        .protocol(origin.protocol())
+        .authority(origin.authority())
+        .build(!build);
+      return this;
+    }
+  };
+  p.host = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined) {
+      return this._parts.hostname ? URI.buildHost(this._parts) : '';
+    } else {
+      var res = URI.parseHost(v, this._parts);
+      if (res !== '/') {
+        throw new TypeError('Hostname "' + v + '" contains characters other than [A-Z0-9.-]');
+      }
+
+      this.build(!build);
+      return this;
+    }
+  };
+  p.authority = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined) {
+      return this._parts.hostname ? URI.buildAuthority(this._parts) : '';
+    } else {
+      var res = URI.parseAuthority(v, this._parts);
+      if (res !== '/') {
+        throw new TypeError('Hostname "' + v + '" contains characters other than [A-Z0-9.-]');
+      }
+
+      this.build(!build);
+      return this;
+    }
+  };
+  p.userinfo = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined) {
+      var t = URI.buildUserinfo(this._parts);
+      return t ? t.substring(0, t.length -1) : t;
+    } else {
+      if (v[v.length-1] !== '@') {
+        v += '@';
+      }
+
+      URI.parseUserinfo(v, this._parts);
+      this.build(!build);
+      return this;
+    }
+  };
+  p.resource = function(v, build) {
+    var parts;
+
+    if (v === undefined) {
+      return this.path() + this.search() + this.hash();
+    }
+
+    parts = URI.parse(v);
+    this._parts.path = parts.path;
+    this._parts.query = parts.query;
+    this._parts.fragment = parts.fragment;
+    this.build(!build);
+    return this;
+  };
+
+  // fraction accessors
+  p.subdomain = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    // convenience, return "www" from "www.example.org"
+    if (v === undefined) {
+      if (!this._parts.hostname || this.is('IP')) {
+        return '';
+      }
+
+      // grab domain and add another segment
+      var end = this._parts.hostname.length - this.domain().length - 1;
+      return this._parts.hostname.substring(0, end) || '';
+    } else {
+      var e = this._parts.hostname.length - this.domain().length;
+      var sub = this._parts.hostname.substring(0, e);
+      var replace = new RegExp('^' + escapeRegEx(sub));
+
+      if (v && v.charAt(v.length - 1) !== '.') {
+        v += '.';
+      }
+
+      if (v.indexOf(':') !== -1) {
+        throw new TypeError('Domains cannot contain colons');
+      }
+
+      if (v) {
+        URI.ensureValidHostname(v, this._parts.protocol);
+      }
+
+      this._parts.hostname = this._parts.hostname.replace(replace, v);
+      this.build(!build);
+      return this;
+    }
+  };
+  p.domain = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (typeof v === 'boolean') {
+      build = v;
+      v = undefined;
+    }
+
+    // convenience, return "example.org" from "www.example.org"
+    if (v === undefined) {
+      if (!this._parts.hostname || this.is('IP')) {
+        return '';
+      }
+
+      // if hostname consists of 1 or 2 segments, it must be the domain
+      var t = this._parts.hostname.match(/\./g);
+      if (t && t.length < 2) {
+        return this._parts.hostname;
+      }
+
+      // grab tld and add another segment
+      var end = this._parts.hostname.length - this.tld(build).length - 1;
+      end = this._parts.hostname.lastIndexOf('.', end -1) + 1;
+      return this._parts.hostname.substring(end) || '';
+    } else {
+      if (!v) {
+        throw new TypeError('cannot set domain empty');
+      }
+
+      if (v.indexOf(':') !== -1) {
+        throw new TypeError('Domains cannot contain colons');
+      }
+
+      URI.ensureValidHostname(v, this._parts.protocol);
+
+      if (!this._parts.hostname || this.is('IP')) {
+        this._parts.hostname = v;
+      } else {
+        var replace = new RegExp(escapeRegEx(this.domain()) + '$');
+        this._parts.hostname = this._parts.hostname.replace(replace, v);
+      }
+
+      this.build(!build);
+      return this;
+    }
+  };
+  p.tld = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (typeof v === 'boolean') {
+      build = v;
+      v = undefined;
+    }
+
+    // return "org" from "www.example.org"
+    if (v === undefined) {
+      if (!this._parts.hostname || this.is('IP')) {
+        return '';
+      }
+
+      var pos = this._parts.hostname.lastIndexOf('.');
+      var tld = this._parts.hostname.substring(pos + 1);
+
+      if (build !== true && SLD && SLD.list[tld.toLowerCase()]) {
+        return SLD.get(this._parts.hostname) || tld;
+      }
+
+      return tld;
+    } else {
+      var replace;
+
+      if (!v) {
+        throw new TypeError('cannot set TLD empty');
+      } else if (v.match(/[^a-zA-Z0-9-]/)) {
+        if (SLD && SLD.is(v)) {
+          replace = new RegExp(escapeRegEx(this.tld()) + '$');
+          this._parts.hostname = this._parts.hostname.replace(replace, v);
+        } else {
+          throw new TypeError('TLD "' + v + '" contains characters other than [A-Z0-9]');
+        }
+      } else if (!this._parts.hostname || this.is('IP')) {
+        throw new ReferenceError('cannot set TLD on non-domain host');
+      } else {
+        replace = new RegExp(escapeRegEx(this.tld()) + '$');
+        this._parts.hostname = this._parts.hostname.replace(replace, v);
+      }
+
+      this.build(!build);
+      return this;
+    }
+  };
+  p.directory = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined || v === true) {
+      if (!this._parts.path && !this._parts.hostname) {
+        return '';
+      }
+
+      if (this._parts.path === '/') {
+        return '/';
+      }
+
+      var end = this._parts.path.length - this.filename().length - 1;
+      var res = this._parts.path.substring(0, end) || (this._parts.hostname ? '/' : '');
+
+      return v ? URI.decodePath(res) : res;
+
+    } else {
+      var e = this._parts.path.length - this.filename().length;
+      var directory = this._parts.path.substring(0, e);
+      var replace = new RegExp('^' + escapeRegEx(directory));
+
+      // fully qualifier directories begin with a slash
+      if (!this.is('relative')) {
+        if (!v) {
+          v = '/';
+        }
+
+        if (v.charAt(0) !== '/') {
+          v = '/' + v;
+        }
+      }
+
+      // directories always end with a slash
+      if (v && v.charAt(v.length - 1) !== '/') {
+        v += '/';
+      }
+
+      v = URI.recodePath(v);
+      this._parts.path = this._parts.path.replace(replace, v);
+      this.build(!build);
+      return this;
+    }
+  };
+  p.filename = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (typeof v !== 'string') {
+      if (!this._parts.path || this._parts.path === '/') {
+        return '';
+      }
+
+      var pos = this._parts.path.lastIndexOf('/');
+      var res = this._parts.path.substring(pos+1);
+
+      return v ? URI.decodePathSegment(res) : res;
+    } else {
+      var mutatedDirectory = false;
+
+      if (v.charAt(0) === '/') {
+        v = v.substring(1);
+      }
+
+      if (v.match(/\.?\//)) {
+        mutatedDirectory = true;
+      }
+
+      var replace = new RegExp(escapeRegEx(this.filename()) + '$');
+      v = URI.recodePath(v);
+      this._parts.path = this._parts.path.replace(replace, v);
+
+      if (mutatedDirectory) {
+        this.normalizePath(build);
+      } else {
+        this.build(!build);
+      }
+
+      return this;
+    }
+  };
+  p.suffix = function(v, build) {
+    if (this._parts.urn) {
+      return v === undefined ? '' : this;
+    }
+
+    if (v === undefined || v === true) {
+      if (!this._parts.path || this._parts.path === '/') {
+        return '';
+      }
+
+      var filename = this.filename();
+      var pos = filename.lastIndexOf('.');
+      var s, res;
+
+      if (pos === -1) {
+        return '';
+      }
+
+      // suffix may only contain alnum characters (yup, I made this up.)
+      s = filename.substring(pos+1);
+      res = (/^[a-z0-9%]+$/i).test(s) ? s : '';
+      return v ? URI.decodePathSegment(res) : res;
+    } else {
+      if (v.charAt(0) === '.') {
+        v = v.substring(1);
+      }
+
+      var suffix = this.suffix();
+      var replace;
+
+      if (!suffix) {
+        if (!v) {
+          return this;
+        }
+
+        this._parts.path += '.' + URI.recodePath(v);
+      } else if (!v) {
+        replace = new RegExp(escapeRegEx('.' + suffix) + '$');
+      } else {
+        replace = new RegExp(escapeRegEx(suffix) + '$');
+      }
+
+      if (replace) {
+        v = URI.recodePath(v);
+        this._parts.path = this._parts.path.replace(replace, v);
+      }
+
+      this.build(!build);
+      return this;
+    }
+  };
+  p.segment = function(segment, v, build) {
+    var separator = this._parts.urn ? ':' : '/';
+    var path = this.path();
+    var absolute = path.substring(0, 1) === '/';
+    var segments = path.split(separator);
+
+    if (segment !== undefined && typeof segment !== 'number') {
+      build = v;
+      v = segment;
+      segment = undefined;
+    }
+
+    if (segment !== undefined && typeof segment !== 'number') {
+      throw new Error('Bad segment "' + segment + '", must be 0-based integer');
+    }
+
+    if (absolute) {
+      segments.shift();
+    }
+
+    if (segment < 0) {
+      // allow negative indexes to address from the end
+      segment = Math.max(segments.length + segment, 0);
+    }
+
+    if (v === undefined) {
+      /*jshint laxbreak: true */
+      return segment === undefined
+        ? segments
+        : segments[segment];
+      /*jshint laxbreak: false */
+    } else if (segment === null || segments[segment] === undefined) {
+      if (isArray(v)) {
+        segments = [];
+        // collapse empty elements within array
+        for (var i=0, l=v.length; i < l; i++) {
+          if (!v[i].length && (!segments.length || !segments[segments.length -1].length)) {
+            continue;
+          }
+
+          if (segments.length && !segments[segments.length -1].length) {
+            segments.pop();
+          }
+
+          segments.push(trimSlashes(v[i]));
+        }
+      } else if (v || typeof v === 'string') {
+        v = trimSlashes(v);
+        if (segments[segments.length -1] === '') {
+          // empty trailing elements have to be overwritten
+          // to prevent results such as /foo//bar
+          segments[segments.length -1] = v;
+        } else {
+          segments.push(v);
+        }
+      }
+    } else {
+      if (v) {
+        segments[segment] = trimSlashes(v);
+      } else {
+        segments.splice(segment, 1);
+      }
+    }
+
+    if (absolute) {
+      segments.unshift('');
+    }
+
+    return this.path(segments.join(separator), build);
+  };
+  p.segmentCoded = function(segment, v, build) {
+    var segments, i, l;
+
+    if (typeof segment !== 'number') {
+      build = v;
+      v = segment;
+      segment = undefined;
+    }
+
+    if (v === undefined) {
+      segments = this.segment(segment, v, build);
+      if (!isArray(segments)) {
+        segments = segments !== undefined ? URI.decode(segments) : undefined;
+      } else {
+        for (i = 0, l = segments.length; i < l; i++) {
+          segments[i] = URI.decode(segments[i]);
+        }
+      }
+
+      return segments;
+    }
+
+    if (!isArray(v)) {
+      v = (typeof v === 'string' || v instanceof String) ? URI.encode(v) : v;
+    } else {
+      for (i = 0, l = v.length; i < l; i++) {
+        v[i] = URI.encode(v[i]);
+      }
+    }
+
+    return this.segment(segment, v, build);
+  };
+
+  // mutating query string
+  var q = p.query;
+  p.query = function(v, build) {
+    if (v === true) {
+      return URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+    } else if (typeof v === 'function') {
+      var data = URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+      var result = v.call(this, data);
+      this._parts.query = URI.buildQuery(result || data, this._parts.duplicateQueryParameters, this._parts.escapeQuerySpace);
+      this.build(!build);
+      return this;
+    } else if (v !== undefined && typeof v !== 'string') {
+      this._parts.query = URI.buildQuery(v, this._parts.duplicateQueryParameters, this._parts.escapeQuerySpace);
+      this.build(!build);
+      return this;
+    } else {
+      return q.call(this, v, build);
+    }
+  };
+  p.setQuery = function(name, value, build) {
+    var data = URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+
+    if (typeof name === 'string' || name instanceof String) {
+      data[name] = value !== undefined ? value : null;
+    } else if (typeof name === 'object') {
+      for (var key in name) {
+        if (hasOwn.call(name, key)) {
+          data[key] = name[key];
+        }
+      }
+    } else {
+      throw new TypeError('URI.addQuery() accepts an object, string as the name parameter');
+    }
+
+    this._parts.query = URI.buildQuery(data, this._parts.duplicateQueryParameters, this._parts.escapeQuerySpace);
+    if (typeof name !== 'string') {
+      build = value;
+    }
+
+    this.build(!build);
+    return this;
+  };
+  p.addQuery = function(name, value, build) {
+    var data = URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+    URI.addQuery(data, name, value === undefined ? null : value);
+    this._parts.query = URI.buildQuery(data, this._parts.duplicateQueryParameters, this._parts.escapeQuerySpace);
+    if (typeof name !== 'string') {
+      build = value;
+    }
+
+    this.build(!build);
+    return this;
+  };
+  p.removeQuery = function(name, value, build) {
+    var data = URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+    URI.removeQuery(data, name, value);
+    this._parts.query = URI.buildQuery(data, this._parts.duplicateQueryParameters, this._parts.escapeQuerySpace);
+    if (typeof name !== 'string') {
+      build = value;
+    }
+
+    this.build(!build);
+    return this;
+  };
+  p.hasQuery = function(name, value, withinArray) {
+    var data = URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace);
+    return URI.hasQuery(data, name, value, withinArray);
+  };
+  p.setSearch = p.setQuery;
+  p.addSearch = p.addQuery;
+  p.removeSearch = p.removeQuery;
+  p.hasSearch = p.hasQuery;
+
+  // sanitizing URLs
+  p.normalize = function() {
+    if (this._parts.urn) {
+      return this
+        .normalizeProtocol(false)
+        .normalizePath(false)
+        .normalizeQuery(false)
+        .normalizeFragment(false)
+        .build();
+    }
+
+    return this
+      .normalizeProtocol(false)
+      .normalizeHostname(false)
+      .normalizePort(false)
+      .normalizePath(false)
+      .normalizeQuery(false)
+      .normalizeFragment(false)
+      .build();
+  };
+  p.normalizeProtocol = function(build) {
+    if (typeof this._parts.protocol === 'string') {
+      this._parts.protocol = this._parts.protocol.toLowerCase();
+      this.build(!build);
+    }
+
+    return this;
+  };
+  p.normalizeHostname = function(build) {
+    if (this._parts.hostname) {
+      if (this.is('IDN') && punycode) {
+        this._parts.hostname = punycode.toASCII(this._parts.hostname);
+      } else if (this.is('IPv6') && IPv6) {
+        this._parts.hostname = IPv6.best(this._parts.hostname);
+      }
+
+      this._parts.hostname = this._parts.hostname.toLowerCase();
+      this.build(!build);
+    }
+
+    return this;
+  };
+  p.normalizePort = function(build) {
+    // remove port of it's the protocol's default
+    if (typeof this._parts.protocol === 'string' && this._parts.port === URI.defaultPorts[this._parts.protocol]) {
+      this._parts.port = null;
+      this.build(!build);
+    }
+
+    return this;
+  };
+  p.normalizePath = function(build) {
+    var _path = this._parts.path;
+    if (!_path) {
+      return this;
+    }
+
+    if (this._parts.urn) {
+      this._parts.path = URI.recodeUrnPath(this._parts.path);
+      this.build(!build);
+      return this;
+    }
+
+    if (this._parts.path === '/') {
+      return this;
+    }
+
+    _path = URI.recodePath(_path);
+
+    var _was_relative;
+    var _leadingParents = '';
+    var _parent, _pos;
+
+    // handle relative paths
+    if (_path.charAt(0) !== '/') {
+      _was_relative = true;
+      _path = '/' + _path;
+    }
+
+    // handle relative files (as opposed to directories)
+    if (_path.slice(-3) === '/..' || _path.slice(-2) === '/.') {
+      _path += '/';
+    }
+
+    // resolve simples
+    _path = _path
+      .replace(/(\/(\.\/)+)|(\/\.$)/g, '/')
+      .replace(/\/{2,}/g, '/');
+
+    // remember leading parents
+    if (_was_relative) {
+      _leadingParents = _path.substring(1).match(/^(\.\.\/)+/) || '';
+      if (_leadingParents) {
+        _leadingParents = _leadingParents[0];
+      }
+    }
+
+    // resolve parents
+    while (true) {
+      _parent = _path.search(/\/\.\.(\/|$)/);
+      if (_parent === -1) {
+        // no more ../ to resolve
+        break;
+      } else if (_parent === 0) {
+        // top level cannot be relative, skip it
+        _path = _path.substring(3);
+        continue;
+      }
+
+      _pos = _path.substring(0, _parent).lastIndexOf('/');
+      if (_pos === -1) {
+        _pos = _parent;
+      }
+      _path = _path.substring(0, _pos) + _path.substring(_parent + 3);
+    }
+
+    // revert to relative
+    if (_was_relative && this.is('relative')) {
+      _path = _leadingParents + _path.substring(1);
+    }
+
+    this._parts.path = _path;
+    this.build(!build);
+    return this;
+  };
+  p.normalizePathname = p.normalizePath;
+  p.normalizeQuery = function(build) {
+    if (typeof this._parts.query === 'string') {
+      if (!this._parts.query.length) {
+        this._parts.query = null;
+      } else {
+        this.query(URI.parseQuery(this._parts.query, this._parts.escapeQuerySpace));
+      }
+
+      this.build(!build);
+    }
+
+    return this;
+  };
+  p.normalizeFragment = function(build) {
+    if (!this._parts.fragment) {
+      this._parts.fragment = null;
+      this.build(!build);
+    }
+
+    return this;
+  };
+  p.normalizeSearch = p.normalizeQuery;
+  p.normalizeHash = p.normalizeFragment;
+
+  p.iso8859 = function() {
+    // expect unicode input, iso8859 output
+    var e = URI.encode;
+    var d = URI.decode;
+
+    URI.encode = escape;
+    URI.decode = decodeURIComponent;
+    try {
+      this.normalize();
+    } finally {
+      URI.encode = e;
+      URI.decode = d;
+    }
+    return this;
+  };
+
+  p.unicode = function() {
+    // expect iso8859 input, unicode output
+    var e = URI.encode;
+    var d = URI.decode;
+
+    URI.encode = strictEncodeURIComponent;
+    URI.decode = unescape;
+    try {
+      this.normalize();
+    } finally {
+      URI.encode = e;
+      URI.decode = d;
+    }
+    return this;
+  };
+
+  p.readable = function() {
+    var uri = this.clone();
+    // removing username, password, because they shouldn't be displayed according to RFC 3986
+    uri.username('').password('').normalize();
+    var t = '';
+    if (uri._parts.protocol) {
+      t += uri._parts.protocol + '://';
+    }
+
+    if (uri._parts.hostname) {
+      if (uri.is('punycode') && punycode) {
+        t += punycode.toUnicode(uri._parts.hostname);
+        if (uri._parts.port) {
+          t += ':' + uri._parts.port;
+        }
+      } else {
+        t += uri.host();
+      }
+    }
+
+    if (uri._parts.hostname && uri._parts.path && uri._parts.path.charAt(0) !== '/') {
+      t += '/';
+    }
+
+    t += uri.path(true);
+    if (uri._parts.query) {
+      var q = '';
+      for (var i = 0, qp = uri._parts.query.split('&'), l = qp.length; i < l; i++) {
+        var kv = (qp[i] || '').split('=');
+        q += '&' + URI.decodeQuery(kv[0], this._parts.escapeQuerySpace)
+          .replace(/&/g, '%26');
+
+        if (kv[1] !== undefined) {
+          q += '=' + URI.decodeQuery(kv[1], this._parts.escapeQuerySpace)
+            .replace(/&/g, '%26');
+        }
+      }
+      t += '?' + q.substring(1);
+    }
+
+    t += URI.decodeQuery(uri.hash(), true);
+    return t;
+  };
+
+  // resolving relative and absolute URLs
+  p.absoluteTo = function(base) {
+    var resolved = this.clone();
+    var properties = ['protocol', 'username', 'password', 'hostname', 'port'];
+    var basedir, i, p;
+
+    if (this._parts.urn) {
+      throw new Error('URNs do not have any generally defined hierarchical components');
+    }
+
+    if (!(base instanceof URI)) {
+      base = new URI(base);
+    }
+
+    if (resolved._parts.protocol) {
+      // Directly returns even if this._parts.hostname is empty.
+      return resolved;
+    } else {
+      resolved._parts.protocol = base._parts.protocol;
+    }
+
+    if (this._parts.hostname) {
+      return resolved;
+    }
+
+    for (i = 0; (p = properties[i]); i++) {
+      resolved._parts[p] = base._parts[p];
+    }
+
+    if (!resolved._parts.path) {
+      resolved._parts.path = base._parts.path;
+      if (!resolved._parts.query) {
+        resolved._parts.query = base._parts.query;
+      }
+    } else {
+      if (resolved._parts.path.substring(-2) === '..') {
+        resolved._parts.path += '/';
+      }
+
+      if (resolved.path().charAt(0) !== '/') {
+        basedir = base.directory();
+        basedir = basedir ? basedir : base.path().indexOf('/') === 0 ? '/' : '';
+        resolved._parts.path = (basedir ? (basedir + '/') : '') + resolved._parts.path;
+        resolved.normalizePath();
+      }
+    }
+
+    resolved.build();
+    return resolved;
+  };
+  p.relativeTo = function(base) {
+    var relative = this.clone().normalize();
+    var relativeParts, baseParts, common, relativePath, basePath;
+
+    if (relative._parts.urn) {
+      throw new Error('URNs do not have any generally defined hierarchical components');
+    }
+
+    base = new URI(base).normalize();
+    relativeParts = relative._parts;
+    baseParts = base._parts;
+    relativePath = relative.path();
+    basePath = base.path();
+
+    if (relativePath.charAt(0) !== '/') {
+      throw new Error('URI is already relative');
+    }
+
+    if (basePath.charAt(0) !== '/') {
+      throw new Error('Cannot calculate a URI relative to another relative URI');
+    }
+
+    if (relativeParts.protocol === baseParts.protocol) {
+      relativeParts.protocol = null;
+    }
+
+    if (relativeParts.username !== baseParts.username || relativeParts.password !== baseParts.password) {
+      return relative.build();
+    }
+
+    if (relativeParts.protocol !== null || relativeParts.username !== null || relativeParts.password !== null) {
+      return relative.build();
+    }
+
+    if (relativeParts.hostname === baseParts.hostname && relativeParts.port === baseParts.port) {
+      relativeParts.hostname = null;
+      relativeParts.port = null;
+    } else {
+      return relative.build();
+    }
+
+    if (relativePath === basePath) {
+      relativeParts.path = '';
+      return relative.build();
+    }
+
+    // determine common sub path
+    common = URI.commonPath(relativePath, basePath);
+
+    // If the paths have nothing in common, return a relative URL with the absolute path.
+    if (!common) {
+      return relative.build();
+    }
+
+    var parents = baseParts.path
+      .substring(common.length)
+      .replace(/[^\/]*$/, '')
+      .replace(/.*?\//g, '../');
+
+    relativeParts.path = (parents + relativeParts.path.substring(common.length)) || './';
+
+    return relative.build();
+  };
+
+  // comparing URIs
+  p.equals = function(uri) {
+    var one = this.clone();
+    var two = new URI(uri);
+    var one_map = {};
+    var two_map = {};
+    var checked = {};
+    var one_query, two_query, key;
+
+    one.normalize();
+    two.normalize();
+
+    // exact match
+    if (one.toString() === two.toString()) {
+      return true;
+    }
+
+    // extract query string
+    one_query = one.query();
+    two_query = two.query();
+    one.query('');
+    two.query('');
+
+    // definitely not equal if not even non-query parts match
+    if (one.toString() !== two.toString()) {
+      return false;
+    }
+
+    // query parameters have the same length, even if they're permuted
+    if (one_query.length !== two_query.length) {
+      return false;
+    }
+
+    one_map = URI.parseQuery(one_query, this._parts.escapeQuerySpace);
+    two_map = URI.parseQuery(two_query, this._parts.escapeQuerySpace);
+
+    for (key in one_map) {
+      if (hasOwn.call(one_map, key)) {
+        if (!isArray(one_map[key])) {
+          if (one_map[key] !== two_map[key]) {
+            return false;
+          }
+        } else if (!arraysEqual(one_map[key], two_map[key])) {
+          return false;
+        }
+
+        checked[key] = true;
+      }
+    }
+
+    for (key in two_map) {
+      if (hasOwn.call(two_map, key)) {
+        if (!checked[key]) {
+          // two contains a parameter not present in one
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
+  // state
+  p.preventInvalidHostname = function(v) {
+    this._parts.preventInvalidHostname = !!v;
+    return this;
+  };
+
+  p.duplicateQueryParameters = function(v) {
+    this._parts.duplicateQueryParameters = !!v;
+    return this;
+  };
+
+  p.escapeQuerySpace = function(v) {
+    this._parts.escapeQuerySpace = !!v;
+    return this;
+  };
+
+  return URI;
+}));
+
+
+/***/ }),
+
+/***/ 3132:
+/***/ (function(module, exports, __webpack_require__) {
+
+/* module decorator */ module = __webpack_require__.nmd(module);
+var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.0 by @mathias */
+;(function(root) {
+
+	/** Detect free variables */
+	var freeExports =  true && exports &&
+		!exports.nodeType && exports;
+	var freeModule =  true && module &&
+		!module.nodeType && module;
+	var freeGlobal = typeof __webpack_require__.g == 'object' && __webpack_require__.g;
+	if (
+		freeGlobal.global === freeGlobal ||
+		freeGlobal.window === freeGlobal ||
+		freeGlobal.self === freeGlobal
+	) {
+		root = freeGlobal;
+	}
+
+	/**
+	 * The `punycode` object.
+	 * @name punycode
+	 * @type Object
+	 */
+	var punycode,
+
+	/** Highest positive signed 32-bit float value */
+	maxInt = 2147483647, // aka. 0x7FFFFFFF or 2^31-1
+
+	/** Bootstring parameters */
+	base = 36,
+	tMin = 1,
+	tMax = 26,
+	skew = 38,
+	damp = 700,
+	initialBias = 72,
+	initialN = 128, // 0x80
+	delimiter = '-', // '\x2D'
+
+	/** Regular expressions */
+	regexPunycode = /^xn--/,
+	regexNonASCII = /[^\x20-\x7E]/, // unprintable ASCII chars + non-ASCII chars
+	regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g, // RFC 3490 separators
+
+	/** Error messages */
+	errors = {
+		'overflow': 'Overflow: input needs wider integers to process',
+		'not-basic': 'Illegal input >= 0x80 (not a basic code point)',
+		'invalid-input': 'Invalid input'
+	},
+
+	/** Convenience shortcuts */
+	baseMinusTMin = base - tMin,
+	floor = Math.floor,
+	stringFromCharCode = String.fromCharCode,
+
+	/** Temporary variable */
+	key;
+
+	/*--------------------------------------------------------------------------*/
+
+	/**
+	 * A generic error utility function.
+	 * @private
+	 * @param {String} type The error type.
+	 * @returns {Error} Throws a `RangeError` with the applicable error message.
+	 */
+	function error(type) {
+		throw new RangeError(errors[type]);
+	}
+
+	/**
+	 * A generic `Array#map` utility function.
+	 * @private
+	 * @param {Array} array The array to iterate over.
+	 * @param {Function} callback The function that gets called for every array
+	 * item.
+	 * @returns {Array} A new array of values returned by the callback function.
+	 */
+	function map(array, fn) {
+		var length = array.length;
+		var result = [];
+		while (length--) {
+			result[length] = fn(array[length]);
+		}
+		return result;
+	}
+
+	/**
+	 * A simple `Array#map`-like wrapper to work with domain name strings or email
+	 * addresses.
+	 * @private
+	 * @param {String} domain The domain name or email address.
+	 * @param {Function} callback The function that gets called for every
+	 * character.
+	 * @returns {Array} A new string of characters returned by the callback
+	 * function.
+	 */
+	function mapDomain(string, fn) {
+		var parts = string.split('@');
+		var result = '';
+		if (parts.length > 1) {
+			// In email addresses, only the domain name should be punycoded. Leave
+			// the local part (i.e. everything up to `@`) intact.
+			result = parts[0] + '@';
+			string = parts[1];
+		}
+		// Avoid `split(regex)` for IE8 compatibility. See #17.
+		string = string.replace(regexSeparators, '\x2E');
+		var labels = string.split('.');
+		var encoded = map(labels, fn).join('.');
+		return result + encoded;
+	}
+
+	/**
+	 * Creates an array containing the numeric code points of each Unicode
+	 * character in the string. While JavaScript uses UCS-2 internally,
+	 * this function will convert a pair of surrogate halves (each of which
+	 * UCS-2 exposes as separate characters) into a single code point,
+	 * matching UTF-16.
+	 * @see `punycode.ucs2.encode`
+	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+	 * @memberOf punycode.ucs2
+	 * @name decode
+	 * @param {String} string The Unicode input string (UCS-2).
+	 * @returns {Array} The new array of code points.
+	 */
+	function ucs2decode(string) {
+		var output = [],
+		    counter = 0,
+		    length = string.length,
+		    value,
+		    extra;
+		while (counter < length) {
+			value = string.charCodeAt(counter++);
+			if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
+				// high surrogate, and there is a next character
+				extra = string.charCodeAt(counter++);
+				if ((extra & 0xFC00) == 0xDC00) { // low surrogate
+					output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
+				} else {
+					// unmatched surrogate; only append this code unit, in case the next
+					// code unit is the high surrogate of a surrogate pair
+					output.push(value);
+					counter--;
+				}
+			} else {
+				output.push(value);
+			}
+		}
+		return output;
+	}
+
+	/**
+	 * Creates a string based on an array of numeric code points.
+	 * @see `punycode.ucs2.decode`
+	 * @memberOf punycode.ucs2
+	 * @name encode
+	 * @param {Array} codePoints The array of numeric code points.
+	 * @returns {String} The new Unicode string (UCS-2).
+	 */
+	function ucs2encode(array) {
+		return map(array, function(value) {
+			var output = '';
+			if (value > 0xFFFF) {
+				value -= 0x10000;
+				output += stringFromCharCode(value >>> 10 & 0x3FF | 0xD800);
+				value = 0xDC00 | value & 0x3FF;
+			}
+			output += stringFromCharCode(value);
+			return output;
+		}).join('');
+	}
+
+	/**
+	 * Converts a basic code point into a digit/integer.
+	 * @see `digitToBasic()`
+	 * @private
+	 * @param {Number} codePoint The basic numeric code point value.
+	 * @returns {Number} The numeric value of a basic code point (for use in
+	 * representing integers) in the range `0` to `base - 1`, or `base` if
+	 * the code point does not represent a value.
+	 */
+	function basicToDigit(codePoint) {
+		if (codePoint - 48 < 10) {
+			return codePoint - 22;
+		}
+		if (codePoint - 65 < 26) {
+			return codePoint - 65;
+		}
+		if (codePoint - 97 < 26) {
+			return codePoint - 97;
+		}
+		return base;
+	}
+
+	/**
+	 * Converts a digit/integer into a basic code point.
+	 * @see `basicToDigit()`
+	 * @private
+	 * @param {Number} digit The numeric value of a basic code point.
+	 * @returns {Number} The basic code point whose value (when used for
+	 * representing integers) is `digit`, which needs to be in the range
+	 * `0` to `base - 1`. If `flag` is non-zero, the uppercase form is
+	 * used; else, the lowercase form is used. The behavior is undefined
+	 * if `flag` is non-zero and `digit` has no uppercase form.
+	 */
+	function digitToBasic(digit, flag) {
+		//  0..25 map to ASCII a..z or A..Z
+		// 26..35 map to ASCII 0..9
+		return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+	}
+
+	/**
+	 * Bias adaptation function as per section 3.4 of RFC 3492.
+	 * https://tools.ietf.org/html/rfc3492#section-3.4
+	 * @private
+	 */
+	function adapt(delta, numPoints, firstTime) {
+		var k = 0;
+		delta = firstTime ? floor(delta / damp) : delta >> 1;
+		delta += floor(delta / numPoints);
+		for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
+			delta = floor(delta / baseMinusTMin);
+		}
+		return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+	}
+
+	/**
+	 * Converts a Punycode string of ASCII-only symbols to a string of Unicode
+	 * symbols.
+	 * @memberOf punycode
+	 * @param {String} input The Punycode string of ASCII-only symbols.
+	 * @returns {String} The resulting string of Unicode symbols.
+	 */
+	function decode(input) {
+		// Don't use UCS-2
+		var output = [],
+		    inputLength = input.length,
+		    out,
+		    i = 0,
+		    n = initialN,
+		    bias = initialBias,
+		    basic,
+		    j,
+		    index,
+		    oldi,
+		    w,
+		    k,
+		    digit,
+		    t,
+		    /** Cached calculation results */
+		    baseMinusT;
+
+		// Handle the basic code points: let `basic` be the number of input code
+		// points before the last delimiter, or `0` if there is none, then copy
+		// the first basic code points to the output.
+
+		basic = input.lastIndexOf(delimiter);
+		if (basic < 0) {
+			basic = 0;
+		}
+
+		for (j = 0; j < basic; ++j) {
+			// if it's not a basic code point
+			if (input.charCodeAt(j) >= 0x80) {
+				error('not-basic');
+			}
+			output.push(input.charCodeAt(j));
+		}
+
+		// Main decoding loop: start just after the last delimiter if any basic code
+		// points were copied; start at the beginning otherwise.
+
+		for (index = basic > 0 ? basic + 1 : 0; index < inputLength; /* no final expression */) {
+
+			// `index` is the index of the next character to be consumed.
+			// Decode a generalized variable-length integer into `delta`,
+			// which gets added to `i`. The overflow checking is easier
+			// if we increase `i` as we go, then subtract off its starting
+			// value at the end to obtain `delta`.
+			for (oldi = i, w = 1, k = base; /* no condition */; k += base) {
+
+				if (index >= inputLength) {
+					error('invalid-input');
+				}
+
+				digit = basicToDigit(input.charCodeAt(index++));
+
+				if (digit >= base || digit > floor((maxInt - i) / w)) {
+					error('overflow');
+				}
+
+				i += digit * w;
+				t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+
+				if (digit < t) {
+					break;
+				}
+
+				baseMinusT = base - t;
+				if (w > floor(maxInt / baseMinusT)) {
+					error('overflow');
+				}
+
+				w *= baseMinusT;
+
+			}
+
+			out = output.length + 1;
+			bias = adapt(i - oldi, out, oldi == 0);
+
+			// `i` was supposed to wrap around from `out` to `0`,
+			// incrementing `n` each time, so we'll fix that now:
+			if (floor(i / out) > maxInt - n) {
+				error('overflow');
+			}
+
+			n += floor(i / out);
+			i %= out;
+
+			// Insert `n` at position `i` of the output
+			output.splice(i++, 0, n);
+
+		}
+
+		return ucs2encode(output);
+	}
+
+	/**
+	 * Converts a string of Unicode symbols (e.g. a domain name label) to a
+	 * Punycode string of ASCII-only symbols.
+	 * @memberOf punycode
+	 * @param {String} input The string of Unicode symbols.
+	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
+	 */
+	function encode(input) {
+		var n,
+		    delta,
+		    handledCPCount,
+		    basicLength,
+		    bias,
+		    j,
+		    m,
+		    q,
+		    k,
+		    t,
+		    currentValue,
+		    output = [],
+		    /** `inputLength` will hold the number of code points in `input`. */
+		    inputLength,
+		    /** Cached calculation results */
+		    handledCPCountPlusOne,
+		    baseMinusT,
+		    qMinusT;
+
+		// Convert the input in UCS-2 to Unicode
+		input = ucs2decode(input);
+
+		// Cache the length
+		inputLength = input.length;
+
+		// Initialize the state
+		n = initialN;
+		delta = 0;
+		bias = initialBias;
+
+		// Handle the basic code points
+		for (j = 0; j < inputLength; ++j) {
+			currentValue = input[j];
+			if (currentValue < 0x80) {
+				output.push(stringFromCharCode(currentValue));
+			}
+		}
+
+		handledCPCount = basicLength = output.length;
+
+		// `handledCPCount` is the number of code points that have been handled;
+		// `basicLength` is the number of basic code points.
+
+		// Finish the basic string - if it is not empty - with a delimiter
+		if (basicLength) {
+			output.push(delimiter);
+		}
+
+		// Main encoding loop:
+		while (handledCPCount < inputLength) {
+
+			// All non-basic code points < n have been handled already. Find the next
+			// larger one:
+			for (m = maxInt, j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+				if (currentValue >= n && currentValue < m) {
+					m = currentValue;
+				}
+			}
+
+			// Increase `delta` enough to advance the decoder's <n,i> state to <m,0>,
+			// but guard against overflow
+			handledCPCountPlusOne = handledCPCount + 1;
+			if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+				error('overflow');
+			}
+
+			delta += (m - n) * handledCPCountPlusOne;
+			n = m;
+
+			for (j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+
+				if (currentValue < n && ++delta > maxInt) {
+					error('overflow');
+				}
+
+				if (currentValue == n) {
+					// Represent delta as a generalized variable-length integer
+					for (q = delta, k = base; /* no condition */; k += base) {
+						t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+						if (q < t) {
+							break;
+						}
+						qMinusT = q - t;
+						baseMinusT = base - t;
+						output.push(
+							stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0))
+						);
+						q = floor(qMinusT / baseMinusT);
+					}
+
+					output.push(stringFromCharCode(digitToBasic(q, 0)));
+					bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength);
+					delta = 0;
+					++handledCPCount;
+				}
+			}
+
+			++delta;
+			++n;
+
+		}
+		return output.join('');
+	}
+
+	/**
+	 * Converts a Punycode string representing a domain name or an email address
+	 * to Unicode. Only the Punycoded parts of the input will be converted, i.e.
+	 * it doesn't matter if you call it on a string that has already been
+	 * converted to Unicode.
+	 * @memberOf punycode
+	 * @param {String} input The Punycoded domain name or email address to
+	 * convert to Unicode.
+	 * @returns {String} The Unicode representation of the given Punycode
+	 * string.
+	 */
+	function toUnicode(input) {
+		return mapDomain(input, function(string) {
+			return regexPunycode.test(string)
+				? decode(string.slice(4).toLowerCase())
+				: string;
+		});
+	}
+
+	/**
+	 * Converts a Unicode string representing a domain name or an email address to
+	 * Punycode. Only the non-ASCII parts of the domain name will be converted,
+	 * i.e. it doesn't matter if you call it with a domain that's already in
+	 * ASCII.
+	 * @memberOf punycode
+	 * @param {String} input The domain name or email address to convert, as a
+	 * Unicode string.
+	 * @returns {String} The Punycode representation of the given domain name or
+	 * email address.
+	 */
+	function toASCII(input) {
+		return mapDomain(input, function(string) {
+			return regexNonASCII.test(string)
+				? 'xn--' + encode(string)
+				: string;
+		});
+	}
+
+	/*--------------------------------------------------------------------------*/
+
+	/** Define the public API */
+	punycode = {
+		/**
+		 * A string representing the current Punycode.js version number.
+		 * @memberOf punycode
+		 * @type String
+		 */
+		'version': '1.3.2',
+		/**
+		 * An object of methods to convert from JavaScript's internal character
+		 * representation (UCS-2) to Unicode code points, and back.
+		 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+		 * @memberOf punycode
+		 * @type Object
+		 */
+		'ucs2': {
+			'decode': ucs2decode,
+			'encode': ucs2encode
+		},
+		'decode': decode,
+		'encode': encode,
+		'toASCII': toASCII,
+		'toUnicode': toUnicode
+	};
+
+	/** Expose `punycode` */
+	// Some AMD build optimizers, like r.js, check for specific condition patterns
+	// like the following:
+	if (
+		true
+	) {
+		!(__WEBPACK_AMD_DEFINE_RESULT__ = (function() {
+			return punycode;
+		}).call(exports, __webpack_require__, exports, module),
+		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	} else {}
+
+}(this));
 
 
 /***/ }),
@@ -37889,6 +48101,22 @@ const MenuItem = /*#__PURE__*/react.forwardRef(function MenuItem(inProps, ref) {
 });
  false ? 0 : void 0;
 /* harmony default export */ const MenuItem_MenuItem = (MenuItem);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/base/entity.js
+var entity = __webpack_require__(7052);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/base/relation.js
+var relation = __webpack_require__(2482);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/querying/entity-load-configuration.js
+var entity_load_configuration = __webpack_require__(8906);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/querying/culture-load-option.js
+var culture_load_option = __webpack_require__(4524);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/querying/property-load-option.js
+var property_load_option = __webpack_require__(9425);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/querying/relation-load-option.js
+var relation_load_option = __webpack_require__(6276);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/base/index.js
+var base = __webpack_require__(2181);
+// EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/contracts/base/relations/parent-to-many-children-relation.js
+var parent_to_many_children_relation = __webpack_require__(5663);
 // EXTERNAL MODULE: ./node_modules/@sitecore/sc-contenthub-webclient-sdk/dist/models/notifications/realtime-request-by-username.js
 var realtime_request_by_username = __webpack_require__(8765);
 ;// CONCATENATED MODULE: ./src/Dall-e Variant/Index.jsx
@@ -37927,11 +48155,19 @@ function _asyncToGenerator(fn) { return function () { var self = this, args = ar
 
 
 
+
+
+
+
+
+
+
+
+
+
 var _require = __webpack_require__(6485),
   Configuration = _require.Configuration,
   OpenAIApi = _require.OpenAIApi;
-
-
 var Index_Buffer = (__webpack_require__(8764).Buffer);
 function createExternalRoot(container) {
   var clientKey;
@@ -38032,7 +48268,7 @@ var Dalle = function Dalle(_ref) {
   };
   var handleSaveImage = /*#__PURE__*/function () {
     var _ref2 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee2(imageUrl) {
-      var buffer, today, date, time, timestamp, uploadSource, request, response, myConfig, myEntity, descriptionProperty, description, assetTypeRelation, assetId, request2;
+      var buffer, baseAssetTitle, parentAssetId, today, date, time, timestamp, uploadSource, request, response, myConfig, myEntity, descriptionProperty, description, assetTypeRelation, assetParentRelation, assetId, request2;
       return _regeneratorRuntime().wrap(function _callee2$(_context2) {
         while (1) {
           switch (_context2.prev = _context2.next) {
@@ -38040,60 +48276,66 @@ var Dalle = function Dalle(_ref) {
               setLoading(true);
               _context2.prev = 1;
               buffer = Index_Buffer.from(imageUrl.split(",")[1], "base64");
+              baseAssetTitle = entity.properties.Title.Invariant;
+              parentAssetId = entity.systemProperties.id;
               today = new Date();
               date = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
               time = today.getHours() + '-' + today.getMinutes() + '-' + today.getSeconds();
               timestamp = date + ' at ' + time;
               uploadSource = new array_buffer_upload_source.ArrayBufferUploadSource(buffer, "Dall-e Variant ".concat(timestamp, ".jpg"));
               request = new upload_request.UploadRequest(uploadSource, "AssetUploadConfiguration", "NewAsset");
-              _context2.next = 11;
+              _context2.next = 13;
               return client.uploads.uploadAsync(request);
-            case 11:
+            case 13:
               response = _context2.sent;
-              myConfig = new EntityLoadConfiguration(CultureLoadOption.Default, new PropertyLoadOption(["Description"]), new RelationLoadOption(["AssetTypeToAsset"]));
-              _context2.next = 15;
+              myConfig = new entity_load_configuration.EntityLoadConfiguration(culture_load_option.CultureLoadOption.Default, new property_load_option.PropertyLoadOption(["Description"]), new relation_load_option.RelationLoadOption(["AssetTypeToAsset", "AssetToAIVariantAsset"]));
+              _context2.next = 17;
               return client.entities.getAsync(response.content.asset_id, myConfig);
-            case 15:
+            case 17:
               myEntity = _context2.sent;
               descriptionProperty = myEntity.getProperty("Description");
-              description = descriptionProperty.setValue("en-US", "Image variant for the imaget: ".concat(entity.properties.Title));
-              _context2.next = 20;
+              description = descriptionProperty.setValue("en-US", "Image variant for the image: ".concat(baseAssetTitle));
+              _context2.next = 22;
               return myEntity.getRelationAsync("AssetTypeToAsset");
-            case 20:
+            case 22:
               assetTypeRelation = _context2.sent;
               assetTypeRelation.setIds([41327]);
-              //relation.Add(41327);
-              _context2.next = 24;
+              _context2.next = 26;
+              return myEntity.getRelationAsync("AssetToAIVariantAsset", base.RelationRole.Child);
+            case 26:
+              assetParentRelation = _context2.sent;
+              assetParentRelation.setIds([parentAssetId]);
+              _context2.next = 30;
               return client.entities.saveAsync(myEntity);
-            case 24:
+            case 30:
               assetId = _context2.sent;
               request2 = new realtime_request_by_username/* RealtimeRequestByUsername */.L();
               request2.recipients.push("almu@sitecore.net");
               request2.setBody("The image was successfully sent to the creation page");
-              _context2.next = 30;
+              _context2.next = 36;
               return client.notifications.sendRealTimeNotificationAsync(request2);
-            case 30:
+            case 36:
               setImages(function (prevImages) {
                 return prevImages.filter(function (image) {
                   return image.imageUrl !== imageUrl;
                 });
               });
-              _context2.next = 36;
+              _context2.next = 42;
               break;
-            case 33:
-              _context2.prev = 33;
+            case 39:
+              _context2.prev = 39;
               _context2.t0 = _context2["catch"](1);
               Index_console.error("Error saving image URL:", _context2.t0);
-            case 36:
-              _context2.prev = 36;
+            case 42:
+              _context2.prev = 42;
               setLoading(false);
-              return _context2.finish(36);
-            case 39:
+              return _context2.finish(42);
+            case 45:
             case "end":
               return _context2.stop();
           }
         }
-      }, _callee2, null, [[1, 33, 36, 39]]);
+      }, _callee2, null, [[1, 39, 42, 45]]);
     }));
     return function handleSaveImage(_x) {
       return _ref2.apply(this, arguments);
