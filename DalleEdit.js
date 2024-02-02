@@ -87562,6 +87562,7 @@ var Index_Buffer = (__webpack_require__(8764).Buffer);
 function createExternalRoot(container) {
   var clientKey;
   var openAIRendition;
+  var aiAssetTypeID;
   return {
     render: function render(context) {
       return _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee() {
@@ -87571,13 +87572,15 @@ function createExternalRoot(container) {
               case 0:
                 clientKey = context.config.clientKey;
                 openAIRendition = context.config.openAIRendition;
+                aiAssetTypeID = context.config.aiAssetTypeID;
                 react_dom.render( /*#__PURE__*/react.createElement(Dalle, {
                   clientKey: clientKey,
+                  aiAssetTypeID: aiAssetTypeID,
                   client: context.client,
                   entity: context.entity,
                   openAIRendition: openAIRendition
                 }), container);
-              case 3:
+              case 4:
               case "end":
                 return _context.stop();
             }
@@ -87591,7 +87594,8 @@ var Dalle = function Dalle(_ref) {
   var clientKey = _ref.clientKey,
     client = _ref.client,
     entity = _ref.entity,
-    openAIRendition = _ref.openAIRendition;
+    openAIRendition = _ref.openAIRendition,
+    aiAssetTypeID = _ref.aiAssetTypeID;
   var _useState = (0,react.useState)(""),
     _useState2 = _slicedToArray(_useState, 2),
     prompt = _useState2[0],
@@ -87694,7 +87698,7 @@ var Dalle = function Dalle(_ref) {
               return myEntity.getRelationAsync("AssetTypeToAsset");
             case 22:
               assetTypeRelation = _context2.sent;
-              assetTypeRelation.setIds([41327]);
+              assetTypeRelation.setIds([aiAssetTypeID]);
               _context2.next = 26;
               return myEntity.getRelationAsync("AssetToAIVariantAsset", base.RelationRole.Child);
             case 26:
